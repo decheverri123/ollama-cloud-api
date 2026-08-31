@@ -1,0 +1,12 @@
+services:
+  ollama-usage-proxy:
+    build: .
+    container_name: ollama-usage-proxy
+    restart: unless-stopped
+    ports:
+      - "11435:11435"
+    environment:
+      - PORT=11435
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
