@@ -123,68 +123,98 @@ export function parseMarkdownTable(tableText) {
     };
 }
 /**
- * Parses HTML table from Ollama model page.
+ * Parses all HTML tables from Ollama model page (focusing on #display > table).
  */
-export function parseHtmlTable(html) {
-    const tableMatch = html.match(/<table[^>]*>([\s\S]*?)<\/table>/i);
-    if (!tableMatch)
+export function parseAllHtmlTables(displayHtml) {
+    const tableMatches = displayHtml.match(/<table[^>]*>([\s\S]*?)<\/table>/gi) || [];
+    if (tableMatches.length === 0)
         return null;
-    const tableContent = tableMatch[1];
-    // Extract headers
-    const thMatches = Array.from(tableContent.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi));
-    if (thMatches.length < 2)
-        return null;
-    const headers = thMatches.map((m) => decodeHtmlEntities(m[1].replace(/<[^>]*>/g, "")));
-    const modelHeaders = headers.slice(1);
-    // Extract rows
-    const trMatches = Array.from(tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi));
-    const rows = [];
-    let currentCategory = "General";
+    let allModels = [];
+    const allRows = [];
     const categoriesSet = new Set();
-    for (const tr of trMatches) {
-        const tdMatches = Array.from(tr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi));
-        if (tdMatches.length === 0)
-            continue;
-        const cells = tdMatches.map((m) => decodeHtmlEntities(m[1].replace(/<[^>]*>/g, "")));
-        const firstCell = cells[0];
-        const otherCells = cells.slice(1);
-        const hasOtherValues = otherCells.some((c) => c !== "" && c !== "-");
-        if (!hasOtherValues && firstCell) {
-            currentCategory = firstCell;
-            categoriesSet.add(currentCategory);
-            continue;
+    for (const tableHtml of tableMatches) {
+        // Extract headers: can be in <thead> or first <tr>
+        const thMatches = Array.from(tableHtml.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi));
+        let headers = [];
+        if (thMatches.length >= 2) {
+            headers = thMatches.map((m) => decodeHtmlEntities(m[1].replace(/<[^>]*>/g, "")));
         }
-        if (!firstCell)
+        else {
+            const firstTr = tableHtml.match(/<tr[^>]*>([\s\S]*?)<\/tr>/i);
+            if (firstTr) {
+                const firstTds = Array.from(firstTr[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi));
+                if (firstTds.length >= 2) {
+                    headers = firstTds.map((m) => decodeHtmlEntities(m[1].replace(/<[^>]*>/g, "")));
+                }
+            }
+        }
+        if (headers.length < 2)
             continue;
-        const scores = {};
-        modelHeaders.forEach((modelName, idx) => {
-            const val = otherCells[idx];
-            if (val !== undefined && val !== "" && val !== "–" && val !== "-") {
-                const num = parseFloat(val);
-                scores[modelName] = isNaN(num) ? val : num;
+        const modelHeaders = headers.slice(1).map((h) => h || "Score");
+        allModels = Array.from(new Set([...allModels, ...modelHeaders]));
+        // Extract table rows
+        const trMatches = Array.from(tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi));
+        let currentCategory = "General";
+        for (let i = 0; i < trMatches.length; i++) {
+            const tr = trMatches[i][1];
+            // Skip if this is the header row
+            if (tr.includes("<th") && i === 0)
+                continue;
+            const tdMatches = Array.from(tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi));
+            if (tdMatches.length === 0)
+                continue;
+            // Check for colspan or single category cell
+            if (tdMatches.length === 1 || tr.includes("colspan")) {
+                const catName = decodeHtmlEntities(tdMatches[0][1].replace(/<[^>]*>/g, ""));
+                if (catName) {
+                    currentCategory = catName;
+                    categoriesSet.add(currentCategory);
+                }
+                continue;
             }
-            else {
-                scores[modelName] = null;
+            const cells = tdMatches.map((m) => decodeHtmlEntities(m[1].replace(/<[^>]*>/g, "")));
+            const firstCell = cells[0];
+            const otherCells = cells.slice(1);
+            // Check if category row where other cells are empty
+            const hasOtherValues = otherCells.some((c) => c !== "" && c !== "-" && c !== "–");
+            if (!hasOtherValues && firstCell) {
+                currentCategory = firstCell;
+                categoriesSet.add(currentCategory);
+                continue;
             }
-        });
-        categoriesSet.add(currentCategory);
-        rows.push({
-            benchmark: firstCell,
-            category: currentCategory,
-            scores,
-        });
+            if (!firstCell)
+                continue;
+            const scores = {};
+            modelHeaders.forEach((modelName, idx) => {
+                const val = otherCells[idx];
+                if (val !== undefined && val !== "" && val !== "–" && val !== "-") {
+                    const cleaned = val.replace(/%/g, "").trim();
+                    const num = parseFloat(cleaned);
+                    scores[modelName] = isNaN(num) ? val : num;
+                }
+                else {
+                    scores[modelName] = null;
+                }
+            });
+            categoriesSet.add(currentCategory);
+            allRows.push({
+                benchmark: firstCell,
+                category: currentCategory,
+                scores,
+            });
+        }
     }
-    if (rows.length === 0)
+    if (allRows.length === 0)
         return null;
     return {
-        models: modelHeaders,
-        benchmarks_count: rows.length,
+        models: allModels,
+        benchmarks_count: allRows.length,
         categories: Array.from(categoriesSet),
-        rows,
+        rows: allRows,
     };
 }
 /**
- * Scrapes Ollama's library page for model benchmarks.
+ * Scrapes Ollama's library page for model benchmarks focusing on #display > table.
  */
 export async function fetchModelBenchmarks(modelName) {
     const cached = benchmarkCache.get(modelName);
@@ -207,19 +237,18 @@ export async function fetchModelBenchmarks(modelName) {
             if (!res.ok)
                 continue;
             const html = await res.text();
-            // 1. Try finding markdown table in textarea
+            // 1. Primary: Extract #display content (document.querySelector("#display"))
+            const displayMatch = html.match(/id="display"[^>]*>([\s\S]*?)<\/div>/i);
+            const targetHtml = displayMatch ? displayMatch[1] : html;
+            const parsedHtml = parseAllHtmlTables(targetHtml);
+            if (parsedHtml) {
+                benchmarkCache.set(modelName, { data: parsedHtml, timestamp: Date.now() });
+                return parsedHtml;
+            }
+            // 2. Secondary fallback: markdown table in textarea
             const benchMarkdownMatch = html.match(/#+\s*Benchmarks[\s\S]*?(\|[\s\S]*?\|(?:\r?\n\s*\r?\n|(?=\s*#)|$))/i);
             if (benchMarkdownMatch) {
                 const parsed = parseMarkdownTable(benchMarkdownMatch[1]);
-                if (parsed) {
-                    benchmarkCache.set(modelName, { data: parsed, timestamp: Date.now() });
-                    return parsed;
-                }
-            }
-            // 2. Try finding HTML table under Benchmarks
-            const benchHtmlMatch = html.match(/<h[1-6][^>]*>[^<]*Benchmarks[^<]*<\/h[1-6]>[\s\S]*?<table[^>]*>([\s\S]*?)<\/table>/i);
-            if (benchHtmlMatch) {
-                const parsed = parseHtmlTable(benchHtmlMatch[0]);
                 if (parsed) {
                     benchmarkCache.set(modelName, { data: parsed, timestamp: Date.now() });
                     return parsed;
