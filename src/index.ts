@@ -551,6 +551,94 @@ function normalizeModelName(name: string): string {
     .replace(/\s+/g, "");
 }
 
+function normalizeTokens(str: string): string[] {
+  return str
+    .toLowerCase()
+    .replace(/:cloud$/, "")
+    .replace(/([a-z])([0-9])/g, "$1 $2")
+    .replace(/([0-9])([a-z])/g, "$1 $2")
+    .replace(/[^a-z0-9]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * Robustly matches and extracts a model's benchmark score from a table row's score map.
+ */
+export function extractModelScore(
+  scores: Record<string, number | string | null>,
+  modelName: string
+): number | string | null {
+  if (!scores || Object.keys(scores).length === 0) return null;
+
+  const modTokens = normalizeTokens(modelName);
+
+  // 1. Direct exact or normalized string match
+  const normMod = modelName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const [col, val] of Object.entries(scores)) {
+    if (val === null || val === undefined) continue;
+    const normCol = col.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (
+      normCol === normMod ||
+      normCol.includes(normMod) ||
+      normMod.includes(normCol)
+    ) {
+      return val;
+    }
+  }
+
+  // 2. Token overlap match (e.g. "V4-Flash High" for "deepseek-v4-flash")
+  let bestCandidateVal: number | string | null = null;
+  let bestScoreNum = -1;
+
+  for (const [col, val] of Object.entries(scores)) {
+    if (val === null || val === undefined) continue;
+    const colTokens = normalizeTokens(col);
+
+    const colCore = colTokens.filter(
+      (t) =>
+        ![
+          "non",
+          "think",
+          "thinking",
+          "high",
+          "max",
+          "dense",
+          "moe",
+          "score",
+          "verified",
+        ].includes(t)
+    );
+    const modCore = modTokens.filter(
+      (t) => !["model", "cloud", "latest"].includes(t)
+    );
+
+    const matchesAllCol =
+      colCore.length > 0 && colCore.every((t) => modCore.includes(t));
+    const matchesAllMod =
+      modCore.length > 0 && modCore.every((t) => colTokens.includes(t));
+    const commonTokens = colCore.filter((t) => modCore.includes(t));
+    const keyTokensMatch = commonTokens.length >= 2;
+
+    if (matchesAllCol || matchesAllMod || keyTokensMatch) {
+      if (typeof val === "number") {
+        if (
+          col.toLowerCase().includes("high") ||
+          col.toLowerCase().includes("max") ||
+          val > bestScoreNum
+        ) {
+          bestCandidateVal = val;
+          bestScoreNum = val;
+        }
+      } else if (!bestCandidateVal) {
+        bestCandidateVal = val;
+      }
+    }
+  }
+
+  return bestCandidateVal;
+}
+
 /**
  * Computes ranked leaderboards from scraped benchmarks across all models.
  */
@@ -596,8 +684,8 @@ function computeLeaderboard(
         // Attempt to find usage tier
         let usage = 2;
         for (const [mod, u] of usageMap.entries()) {
-          if (normalizeModelName(mod).includes(normalizeModelName(name)) ||
-              normalizeModelName(name).includes(normalizeModelName(mod))) {
+          const matchedScore = extractModelScore({ [name]: 1 }, mod);
+          if (matchedScore !== null) {
             usage = u;
             break;
           }
@@ -1223,15 +1311,22 @@ const server = http.createServer(async (req, res) => {
           if (m.benchmarks?.rows) {
             const foundRow = m.benchmarks.rows.find((r: any) => r.benchmark === bName);
             if (foundRow) {
-              for (const [colName, val] of Object.entries(foundRow.scores || {})) {
-                if (normalizeModelName(colName).includes(normalizeModelName(m.name)) ||
-                    normalizeModelName(m.name).includes(normalizeModelName(colName))) {
-                  score = val as any;
-                  break;
+              score = extractModelScore(foundRow.scores || {}, m.name);
+            }
+          }
+          if (score === null) {
+            for (const other of comparedModels) {
+              if (other.name !== m.name && other.benchmarks?.rows) {
+                const foundRow = other.benchmarks.rows.find(
+                  (r: any) => r.benchmark === bName
+                );
+                if (foundRow) {
+                  const crossScore = extractModelScore(foundRow.scores || {}, m.name);
+                  if (crossScore !== null) {
+                    score = crossScore;
+                    break;
+                  }
                 }
-              }
-              if (score === null && foundRow.scores?.[m.name] !== undefined) {
-                score = foundRow.scores[m.name];
               }
             }
           }
@@ -1354,19 +1449,16 @@ const server = http.createServer(async (req, res) => {
           // If benchmark has Coding category, extract average
           const rows = m.benchmarks?.rows || [];
           const codingRows = rows.filter(
-            (r: any) => r.category?.toLowerCase() === "coding"
+            (r: any) => r.category?.toLowerCase() === "coding" || r.category?.toLowerCase() === "coding agent"
           );
           if (codingRows.length > 0) {
             let total = 0;
             let cnt = 0;
             for (const r of codingRows) {
-              for (const [col, v] of Object.entries(r.scores || {})) {
-                if (typeof v === "number" &&
-                    (normalizeModelName(col).includes(normalizeModelName(name)) ||
-                     normalizeModelName(name).includes(normalizeModelName(col)))) {
-                  total += v;
-                  cnt += 1;
-                }
+              const scoreVal = extractModelScore(r.scores || {}, name);
+              if (typeof scoreVal === "number") {
+                total += scoreVal;
+                cnt += 1;
               }
             }
             if (cnt > 0) {
@@ -1381,19 +1473,16 @@ const server = http.createServer(async (req, res) => {
         } else if (task === "agentic") {
           const rows = m.benchmarks?.rows || [];
           const agenticRows = rows.filter(
-            (r: any) => r.category?.toLowerCase() === "agentic"
+            (r: any) => r.category?.toLowerCase() === "agentic" || r.category?.toLowerCase() === "general agent"
           );
           if (agenticRows.length > 0) {
             let total = 0;
             let cnt = 0;
             for (const r of agenticRows) {
-              for (const [col, v] of Object.entries(r.scores || {})) {
-                if (typeof v === "number" &&
-                    (normalizeModelName(col).includes(normalizeModelName(name)) ||
-                     normalizeModelName(name).includes(normalizeModelName(col)))) {
-                  total += v;
-                  cnt += 1;
-                }
+              const scoreVal = extractModelScore(r.scores || {}, name);
+              if (typeof scoreVal === "number") {
+                total += scoreVal;
+                cnt += 1;
               }
             }
             if (cnt > 0) {
