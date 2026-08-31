@@ -5,6 +5,7 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
 const PORT = parseInt(process.env.PORT || "11435", 10);
 const usageCache = new Map();
 const benchmarkCache = new Map();
+let liveCatalogCache = null;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 /**
  * Maps cloud usage string levels to numeric tiers (1 - 4):
@@ -302,42 +303,114 @@ export async function fetchModelUsage(modelName) {
     return 1;
 }
 /**
+ * Scrapes the live Ollama Cloud models catalog from https://ollama.com/search?c=cloud
+ */
+export async function fetchLiveCloudCatalog() {
+    if (liveCatalogCache && Date.now() - liveCatalogCache.timestamp < CACHE_TTL_MS) {
+        return liveCatalogCache.models;
+    }
+    try {
+        const res = await fetch("https://ollama.com/search?c=cloud", {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)",
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+        });
+        if (!res.ok) {
+            throw new Error(`Ollama search returned HTTP ${res.status}`);
+        }
+        const html = await res.text();
+        const matches = Array.from(html.matchAll(/<a[^>]*href="\/library\/([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi));
+        const models = [];
+        const seen = new Set();
+        for (const m of matches) {
+            const slug = m[1].trim();
+            if (seen.has(slug))
+                continue;
+            seen.add(slug);
+            const cardHtml = m[2];
+            const descMatch = cardHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+            const desc = descMatch
+                ? decodeHtmlEntities(descMatch[1].replace(/<[^>]*>/g, ""))
+                : "";
+            models.push({
+                name: slug,
+                cloud_tag: `${slug}:cloud`,
+                description: desc,
+                pull_command: `ollama pull ${slug}:cloud`,
+            });
+        }
+        if (models.length > 0) {
+            liveCatalogCache = { models, timestamp: Date.now() };
+            return models;
+        }
+    }
+    catch (err) {
+        if (liveCatalogCache)
+            return liveCatalogCache.models;
+    }
+    return [];
+}
+/**
+ * Matches a cloud model slug against local installed models list.
+ */
+export function findLocalInstalledModel(cloudSlug, localModels) {
+    const normSlug = cloudSlug.toLowerCase();
+    for (const m of localModels) {
+        const modName = (m.name || m.model || "").toLowerCase();
+        if (modName === normSlug ||
+            modName === `${normSlug}:cloud` ||
+            modName.startsWith(`${normSlug}:`)) {
+            return m;
+        }
+    }
+    return null;
+}
+/**
  * Fetch raw tags from Ollama API
  */
 async function fetchOllamaTags() {
-    const res = await fetch(`${OLLAMA_HOST}/api/tags`);
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Ollama returned status ${res.status}`);
+    try {
+        const res = await fetch(`${OLLAMA_HOST}/api/tags`);
+        if (!res.ok) {
+            return [];
+        }
+        const data = (await res.json());
+        return data.models || [];
     }
-    const data = (await res.json());
-    return data.models || [];
+    catch {
+        return [];
+    }
 }
 /**
  * Fetch raw ps (running models) from Ollama API
  */
 async function fetchOllamaPs() {
-    const res = await fetch(`${OLLAMA_HOST}/api/ps`);
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Ollama returned status ${res.status}`);
+    try {
+        const res = await fetch(`${OLLAMA_HOST}/api/ps`);
+        if (!res.ok) {
+            return [];
+        }
+        const data = (await res.json());
+        return data.models || [];
     }
-    const data = (await res.json());
-    return data.models || [];
+    catch {
+        return [];
+    }
 }
 async function getEnrichedModelData(modelName, verbose = true, includeBenchmarks = false) {
-    // 1. Fetch from local Ollama instance
+    // 1. Fetch from local Ollama instance (if installed)
     const ollamaPromise = fetch(`${OLLAMA_HOST}/api/show`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: modelName, verbose }),
-    }).then(async (r) => {
-        if (!r.ok) {
-            const text = await r.text();
-            throw new Error(text || `Ollama returned status ${r.status}`);
-        }
+    })
+        .then(async (r) => {
+        if (!r.ok)
+            return null;
         return r.json();
-    });
+    })
+        .catch(() => null);
     // 2. Fetch usage in parallel
     const usagePromise = fetchModelUsage(modelName);
     // 3. Fetch benchmarks in parallel if requested
@@ -350,8 +423,9 @@ async function getEnrichedModelData(modelName, verbose = true, includeBenchmarks
         benchmarkPromise,
     ]));
     const res = {
-        ...modelDetails,
+        ...(modelDetails || {}),
         usage: usage || 1,
+        installed: modelDetails !== null,
     };
     if (includeBenchmarks) {
         res.benchmarks = benchmarks;
@@ -359,10 +433,18 @@ async function getEnrichedModelData(modelName, verbose = true, includeBenchmarks
     return res;
 }
 /**
- * Applies filters (usage, max_usage, min_usage, capability) and sorting to a list of models.
+ * Applies filters (usage, max_usage, min_usage, capability, installed) and sorting to a list of models.
  */
 function applyFiltersAndSort(models, searchParams) {
     let result = [...models];
+    // Filter: installed e.g. ?installed=true or ?installed=false
+    const installedFilter = searchParams.get("installed");
+    if (installedFilter === "true") {
+        result = result.filter((m) => m.installed === true);
+    }
+    else if (installedFilter === "false") {
+        result = result.filter((m) => m.installed === false);
+    }
     // Filter: usage exact list e.g. ?usage=1,2
     const usageFilter = searchParams.get("usage");
     if (usageFilter) {
@@ -435,16 +517,6 @@ function groupModelsByTier(models) {
         grouped[key].push(m);
     }
     return grouped;
-}
-/**
- * Normalizes model names for matching between Ollama tags and benchmark headers.
- */
-function normalizeModelName(name) {
-    return name
-        .toLowerCase()
-        .replace(/:cloud$/, "")
-        .replace(/[-_.]/g, "")
-        .replace(/\s+/g, "");
 }
 function normalizeTokens(str) {
     return str
@@ -592,14 +664,20 @@ const openApiSpec = {
     paths: {
         "/api/show-cloud": {
             get: {
-                summary: "Get Cloud Models (Full Details + Usage)",
-                description: "Lists all Ollama Cloud models with full show metadata (parameters, template, capabilities, model_info) and numeric cloud usage tiers (1=Low, 2=Medium, 3=High, 4=Extra High).",
+                summary: "Get Cloud Models (Full Catalog + Local Installed Status)",
+                description: "Lists all Ollama Cloud models live from Ollama's catalog, enriched with local installed status (installed: true/false), parameters, template, capabilities, model_info, and numeric usage tiers (1=Low, 2=Medium, 3=High, 4=Extra High).",
                 parameters: [
                     {
                         name: "model",
                         in: "query",
                         description: "Optional model name to fetch a single model.",
                         schema: { type: "string", example: "kimi-k3:cloud" },
+                    },
+                    {
+                        name: "installed",
+                        in: "query",
+                        description: "Filter by local installation status (true or false).",
+                        schema: { type: "boolean", example: true },
                     },
                     {
                         name: "benchmarks",
@@ -709,6 +787,12 @@ const openApiSpec = {
                         schema: { type: "string", example: "tools" },
                     },
                     {
+                        name: "installed",
+                        in: "query",
+                        description: "If true, only recommends models you currently have installed.",
+                        schema: { type: "boolean", example: true },
+                    },
+                    {
                         name: "min_context",
                         in: "query",
                         description: "Minimum context length required (e.g. 131072 for 128k, 1048576 for 1M).",
@@ -770,7 +854,7 @@ const openApiSpec = {
         "/api/overview": {
             get: {
                 summary: "Catalog Analytics & Overview",
-                description: "Dashboard metrics covering tier distributions, capabilities breakdown, context lengths, and benchmark coverage.",
+                description: "Dashboard metrics covering live catalog size, installed vs uninstalled counts, tier distributions, capabilities breakdown, context lengths, and benchmark coverage.",
                 responses: {
                     "200": {
                         description: "Catalog statistics",
@@ -814,8 +898,14 @@ const openApiSpec = {
         "/api/tags-cloud": {
             get: {
                 summary: "Lightweight Cloud Tags",
-                description: "Fast tags-compatible endpoint returning only cloud models with usage numbers (1-4).",
+                description: "Fast tags-compatible endpoint returning only cloud models with usage numbers (1-4) and installed status.",
                 parameters: [
+                    {
+                        name: "installed",
+                        in: "query",
+                        description: "Filter by installed status (true or false).",
+                        schema: { type: "boolean" },
+                    },
                     {
                         name: "usage",
                         in: "query",
@@ -861,7 +951,7 @@ const openApiSpec = {
         "/api/cache/status": {
             get: {
                 summary: "Cache Status",
-                description: "View in-memory usage & benchmark cache size, TTL, entries, ages, and time-to-expiry.",
+                description: "View in-memory usage, benchmark, and catalog cache size, TTL, entries, ages, and time-to-expiry.",
                 responses: {
                     "200": {
                         description: "Cache status details",
@@ -872,8 +962,8 @@ const openApiSpec = {
         },
         "/api/cache/clear": {
             post: {
-                summary: "Clear Usage & Benchmark Cache",
-                description: "Immediately flushes all cached model usage levels and benchmarks.",
+                summary: "Clear All Caches",
+                description: "Immediately flushes all cached model usage levels, benchmarks, and catalog lists.",
                 responses: {
                     "200": {
                         description: "Cache cleared",
@@ -972,8 +1062,11 @@ const server = http.createServer(async (req, res) => {
     // 3. Catalog Overview & Analytics (/api/overview)
     if (pathname === "/api/overview" || pathname === "/overview") {
         try {
-            const rawModels = await fetchOllamaTags();
-            const cloudModels = rawModels.filter(isCloudModel);
+            const [rawLocalModels, liveCatalog] = await Promise.all([
+                fetchOllamaTags(),
+                fetchLiveCloudCatalog(),
+            ]);
+            const localCloudModels = rawLocalModels.filter(isCloudModel);
             const usageDist = {
                 "1_low": 0,
                 "2_medium": 0,
@@ -983,33 +1076,41 @@ const server = http.createServer(async (req, res) => {
             const capabilitiesCount = {};
             let longContextCount = 0; // 1M+
             const modelsWithBenchmarks = [];
-            await Promise.all(cloudModels.map(async (m) => {
-                const name = m.name || m.model;
-                if (!name)
-                    return;
+            const uninstalledModels = [];
+            await Promise.all(liveCatalog.map(async (catModel) => {
+                const name = catModel.name;
                 const u = await fetchModelUsage(name);
                 const key = u === 1 ? "1_low" : u === 2 ? "2_medium" : u === 3 ? "3_high" : "4_extra_high";
                 usageDist[key] = (usageDist[key] || 0) + 1;
-                if (Array.isArray(m.capabilities)) {
-                    for (const cap of m.capabilities) {
-                        capabilitiesCount[cap] = (capabilitiesCount[cap] || 0) + 1;
-                    }
+                const localMatch = findLocalInstalledModel(name, localCloudModels);
+                if (!localMatch) {
+                    uninstalledModels.push(catModel.cloud_tag);
                 }
-                const ctx = m.model_info?.context_length ||
-                    m.details?.context_length ||
-                    m.model_info?.[`${m.details?.family}.context_length`];
-                if (ctx && ctx >= 1000000) {
-                    longContextCount += 1;
+                else {
+                    if (Array.isArray(localMatch.capabilities)) {
+                        for (const cap of localMatch.capabilities) {
+                            capabilitiesCount[cap] = (capabilitiesCount[cap] || 0) + 1;
+                        }
+                    }
+                    const ctx = localMatch.model_info?.context_length ||
+                        localMatch.details?.context_length ||
+                        localMatch.model_info?.[`${localMatch.details?.family}.context_length`];
+                    if (ctx && ctx >= 1000000) {
+                        longContextCount += 1;
+                    }
                 }
                 const bench = await fetchModelBenchmarks(name);
                 if (bench) {
-                    modelsWithBenchmarks.push(name);
+                    modelsWithBenchmarks.push(catModel.cloud_tag);
                 }
             }));
             res.writeHead(200, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({
-                total_cloud_models: cloudModels.length,
-                total_local_models: rawModels.length - cloudModels.length,
+                live_cloud_catalog_count: liveCatalog.length,
+                installed_cloud_models_count: liveCatalog.length - uninstalledModels.length,
+                uninstalled_cloud_models_count: uninstalledModels.length,
+                uninstalled_models: uninstalledModels,
+                total_local_installed_models: rawLocalModels.length,
                 usage_tier_distribution: usageDist,
                 capabilities_breakdown: capabilitiesCount,
                 models_with_1m_context_count: longContextCount,
@@ -1018,6 +1119,7 @@ const server = http.createServer(async (req, res) => {
                 cache: {
                     cached_usage_entries: usageCache.size,
                     cached_benchmarks_entries: benchmarkCache.size,
+                    live_catalog_cached: liveCatalogCache !== null,
                 },
             }, null, 2));
         }
@@ -1029,19 +1131,16 @@ const server = http.createServer(async (req, res) => {
     // 4. Leaderboard endpoint (/api/leaderboard)
     if (pathname === "/api/leaderboard" || pathname === "/leaderboard") {
         try {
-            const rawModels = await fetchOllamaTags();
-            const cloudModels = rawModels.filter(isCloudModel);
+            const liveCatalog = await fetchLiveCloudCatalog();
             const usageMap = new Map();
             const benchDataList = [];
-            await Promise.all(cloudModels.map(async (m) => {
-                const name = m.name || m.model;
-                if (!name)
-                    return;
+            await Promise.all(liveCatalog.map(async (catModel) => {
+                const name = catModel.name;
                 const u = await fetchModelUsage(name);
                 usageMap.set(name, u);
                 const b = await fetchModelBenchmarks(name);
                 if (b) {
-                    benchDataList.push({ model: name, data: b });
+                    benchDataList.push({ model: catModel.cloud_tag, data: b });
                 }
             }));
             const leaderboards = computeLeaderboard(benchDataList, usageMap);
@@ -1076,6 +1175,7 @@ const server = http.createServer(async (req, res) => {
                 const enriched = await getEnrichedModelData(name, true, true);
                 return {
                     name,
+                    installed: enriched.installed,
                     usage: enriched.usage,
                     details: enriched.details,
                     capabilities: enriched.capabilities || [],
@@ -1125,6 +1225,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({
                 compared_models: comparedModels.map((m) => ({
                     name: m.name,
+                    installed: m.installed,
                     usage: m.usage,
                     parameter_size: m.details?.parameter_size,
                     quantization_level: m.details?.quantization_level,
@@ -1153,30 +1254,38 @@ const server = http.createServer(async (req, res) => {
             : [];
         const minContextParam = parsedUrl.searchParams.get("min_context");
         const minContext = minContextParam ? parseInt(minContextParam, 10) : 0;
+        const onlyInstalled = parsedUrl.searchParams.get("installed") === "true";
         try {
-            const rawModels = await fetchOllamaTags();
-            const cloudModels = rawModels.filter(isCloudModel);
-            const enrichedList = await Promise.all(cloudModels.map(async (m) => {
-                const name = m.name || m.model;
-                if (!name)
-                    return null;
+            const [rawLocalModels, liveCatalog] = await Promise.all([
+                fetchOllamaTags(),
+                fetchLiveCloudCatalog(),
+            ]);
+            const localCloudModels = rawLocalModels.filter(isCloudModel);
+            const enrichedList = await Promise.all(liveCatalog.map(async (catModel) => {
+                const name = catModel.name;
+                const localMatch = findLocalInstalledModel(name, localCloudModels);
                 const u = await fetchModelUsage(name);
                 const b = await fetchModelBenchmarks(name);
                 return {
-                    ...m,
+                    name: catModel.cloud_tag,
+                    installed: localMatch !== null,
+                    installed_tag: localMatch ? localMatch.name || localMatch.model : null,
+                    pull_command: catModel.pull_command,
+                    description: catModel.description,
                     usage: u,
                     benchmarks: b,
+                    details: localMatch?.details,
+                    capabilities: localMatch?.capabilities || [],
+                    model_info: localMatch?.model_info,
                 };
             }));
-            const validModels = enrichedList.filter(Boolean);
-            // Filter by constraints
-            let candidates = validModels.filter((m) => {
+            let candidates = enrichedList.filter((m) => {
+                if (onlyInstalled && !m.installed)
+                    return false;
                 if (m.usage > maxUsage)
                     return false;
-                if (reqCaps.length > 0) {
-                    const caps = Array.isArray(m.capabilities)
-                        ? m.capabilities.map((c) => String(c).toLowerCase())
-                        : [];
+                if (reqCaps.length > 0 && m.capabilities.length > 0) {
+                    const caps = m.capabilities.map((c) => String(c).toLowerCase());
                     if (!reqCaps.every((c) => caps.includes(c)))
                         return false;
                 }
@@ -1184,7 +1293,7 @@ const server = http.createServer(async (req, res) => {
                     m.details?.context_length ||
                     m.model_info?.[`${m.details?.family}.context_length`] ||
                     0;
-                if (minContext > 0 && ctx < minContext)
+                if (minContext > 0 && ctx > 0 && ctx < minContext)
                     return false;
                 return true;
             });
@@ -1199,18 +1308,20 @@ const server = http.createServer(async (req, res) => {
             }
             // Rank candidates according to task
             const scoredCandidates = candidates.map((m) => {
-                let score = 50; // base score
+                let score = 50;
                 let reason = "";
-                const name = m.name || m.model;
+                const name = m.name;
                 const caps = Array.isArray(m.capabilities)
                     ? m.capabilities.map((c) => String(c).toLowerCase())
                     : [];
                 // Bonus for low usage (efficiency)
                 score += (4 - m.usage) * 10;
+                if (m.installed)
+                    score += 5; // Preference for already installed models
                 if (task === "coding") {
-                    // If benchmark has Coding category, extract average
                     const rows = m.benchmarks?.rows || [];
-                    const codingRows = rows.filter((r) => r.category?.toLowerCase() === "coding" || r.category?.toLowerCase() === "coding agent");
+                    const codingRows = rows.filter((r) => r.category?.toLowerCase() === "coding" ||
+                        r.category?.toLowerCase() === "coding agent");
                     if (codingRows.length > 0) {
                         let total = 0;
                         let cnt = 0;
@@ -1236,7 +1347,8 @@ const server = http.createServer(async (req, res) => {
                 }
                 else if (task === "agentic") {
                     const rows = m.benchmarks?.rows || [];
-                    const agenticRows = rows.filter((r) => r.category?.toLowerCase() === "agentic" || r.category?.toLowerCase() === "general agent");
+                    const agenticRows = rows.filter((r) => r.category?.toLowerCase() === "agentic" ||
+                        r.category?.toLowerCase() === "general agent");
                     if (agenticRows.length > 0) {
                         let total = 0;
                         let cnt = 0;
@@ -1279,6 +1391,8 @@ const server = http.createServer(async (req, res) => {
                 }
                 return {
                     model: name,
+                    installed: m.installed,
+                    pull_command: m.pull_command,
                     usage: m.usage,
                     capabilities: caps,
                     score: Math.round(score * 10) / 10,
@@ -1293,6 +1407,8 @@ const server = http.createServer(async (req, res) => {
                 task,
                 max_usage: maxUsage,
                 recommendation: top.model,
+                installed: top.installed,
+                pull_command: top.installed ? undefined : top.pull_command,
                 usage_tier: top.usage,
                 score: top.score,
                 reason: top.reason,
@@ -1331,19 +1447,16 @@ const server = http.createServer(async (req, res) => {
                 return res.end(JSON.stringify({ error: err.message }));
             }
         }
-        // List benchmarks for all installed cloud models
+        // List benchmarks for all models in live catalog
         try {
-            const rawModels = await fetchOllamaTags();
-            const cloudModels = rawModels.filter(isCloudModel);
-            const benchmarkResults = await Promise.all(cloudModels.map(async (m) => {
-                const modelName = m.name || m.model;
-                if (!modelName)
-                    return null;
-                const data = await fetchModelBenchmarks(modelName);
+            const liveCatalog = await fetchLiveCloudCatalog();
+            const benchmarkResults = await Promise.all(liveCatalog.map(async (catModel) => {
+                const name = catModel.name;
+                const data = await fetchModelBenchmarks(name);
                 if (!data)
                     return null;
                 return {
-                    model: modelName,
+                    model: catModel.cloud_tag,
                     ...data,
                 };
             }));
@@ -1380,6 +1493,7 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({
             cached_usage_count: usageCache.size,
             cached_benchmarks_count: benchmarkCache.size,
+            live_catalog_cached: liveCatalogCache !== null,
             ttl_seconds: CACHE_TTL_MS / 1000,
             usage_entries: usageEntries,
             benchmark_entries: benchmarkEntries,
@@ -1389,23 +1503,35 @@ const server = http.createServer(async (req, res) => {
         const count = usageCache.size + benchmarkCache.size;
         usageCache.clear();
         benchmarkCache.clear();
+        liveCatalogCache = null;
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({
             status: "ok",
-            message: `Usage and benchmark caches cleared successfully (${count} entries removed)`,
+            message: `Usage, benchmark, and catalog caches cleared successfully (${count} entries removed)`,
         }));
     }
     // 9. Lightweight Cloud Tags endpoint (/api/tags-cloud)
     if (pathname === "/api/tags-cloud" || pathname === "/tags-cloud") {
         try {
-            const rawModels = await fetchOllamaTags();
-            const cloudModels = rawModels.filter(isCloudModel);
-            const enrichedTags = await Promise.all(cloudModels.map(async (m) => {
-                const modelName = m.name || m.model;
-                const usage = modelName ? await fetchModelUsage(modelName) : 1;
+            const [rawLocalModels, liveCatalog] = await Promise.all([
+                fetchOllamaTags(),
+                fetchLiveCloudCatalog(),
+            ]);
+            const localCloudModels = rawLocalModels.filter(isCloudModel);
+            const enrichedTags = await Promise.all(liveCatalog.map(async (catModel) => {
+                const name = catModel.name;
+                const localMatch = findLocalInstalledModel(name, localCloudModels);
+                const usage = await fetchModelUsage(name);
                 return {
-                    ...m,
+                    name: catModel.cloud_tag,
+                    model: catModel.name,
+                    description: catModel.description,
+                    installed: localMatch !== null,
+                    installed_tag: localMatch ? localMatch.name || localMatch.model : null,
+                    pull_command: catModel.pull_command,
                     usage,
+                    details: localMatch?.details,
+                    size: localMatch?.size || 0,
                 };
             }));
             const filtered = applyFiltersAndSort(enrichedTags, parsedUrl.searchParams);
@@ -1419,7 +1545,7 @@ const server = http.createServer(async (req, res) => {
         catch (err) {
             res.writeHead(502, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({
-                error: `Failed to fetch cloud tags from Ollama (${OLLAMA_HOST}): ${err.message}`,
+                error: `Failed to fetch cloud tags: ${err.message}`,
             }));
         }
     }
@@ -1433,6 +1559,7 @@ const server = http.createServer(async (req, res) => {
                 const usage = modelName ? await fetchModelUsage(modelName) : 1;
                 return {
                     ...m,
+                    installed: true,
                     usage,
                 };
             }));
@@ -1531,24 +1658,39 @@ async function handleShowCloud(_req, res, payload) {
 }
 async function handleShowCloudAll(_req, res, parsedUrl, grouped = false, includeBenchmarks = false) {
     try {
-        const rawModels = await fetchOllamaTags();
-        const cloudModels = rawModels.filter(isCloudModel);
-        const enrichedModels = await Promise.all(cloudModels.map(async (m) => {
-            const modelName = m.name || m.model;
-            if (!modelName)
-                return m;
+        const [rawLocalModels, liveCatalog] = await Promise.all([
+            fetchOllamaTags(),
+            fetchLiveCloudCatalog(),
+        ]);
+        const localCloudModels = rawLocalModels.filter(isCloudModel);
+        const enrichedModels = await Promise.all(liveCatalog.map(async (catModel) => {
+            const name = catModel.name;
+            const localMatch = findLocalInstalledModel(name, localCloudModels);
+            const isInstalled = localMatch !== null;
+            const targetModelName = localMatch ? localMatch.name || localMatch.model : catModel.cloud_tag;
             try {
-                const enriched = await getEnrichedModelData(modelName, true, includeBenchmarks);
+                const enriched = await getEnrichedModelData(targetModelName, true, includeBenchmarks);
                 return {
-                    ...m,
+                    name: catModel.cloud_tag,
+                    cloud_name: catModel.name,
+                    description: catModel.description,
+                    installed_tag: localMatch ? localMatch.name || localMatch.model : null,
+                    pull_command: catModel.pull_command,
+                    ...(localMatch || {}),
                     ...enriched,
+                    installed: isInstalled,
                 };
             }
             catch (err) {
                 return {
-                    ...m,
+                    name: catModel.cloud_tag,
+                    cloud_name: catModel.name,
+                    description: catModel.description,
+                    installed: isInstalled,
+                    installed_tag: localMatch ? localMatch.name || localMatch.model : null,
+                    pull_command: catModel.pull_command,
+                    usage: await fetchModelUsage(name),
                     error: err.message,
-                    usage: 1,
                 };
             }
         }));
@@ -1563,7 +1705,7 @@ async function handleShowCloudAll(_req, res, parsedUrl, grouped = false, include
     catch (err) {
         res.writeHead(502, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
-            error: `Failed to fetch models from Ollama (${OLLAMA_HOST}): ${err.message}`,
+            error: `Failed to fetch cloud models: ${err.message}`,
         }));
     }
 }
