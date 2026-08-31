@@ -1,11 +1,11 @@
-# 🦙 ollama-usage-proxy
+# 🦙 ollama-cloud-api
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org)
 [![Docker Support](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 [![Interactive Docs](https://img.shields.io/badge/Docs-Scalar-blueviolet.svg)](http://localhost:11435/docs)
 
-A high-performance Node.js/TypeScript proxy for the [Ollama](https://ollama.com) API that enriches and manages your **Ollama Cloud models** with live numeric usage tiers (`1`–`4`), benchmark tables, smart task recommendations, head-to-head model comparisons, ranked leaderboards, and interactive web documentation powered by **Scalar**.
+The missing API for **Ollama Cloud models**: live numeric usage tiers (`1`–`4`), benchmark tables, smart task recommendations, head-to-head model comparisons, ranked leaderboards, and interactive web documentation powered by **Scalar**.
 
 All standard Ollama endpoints (`/api/show`, `/api/tags`, `/api/generate`, `/api/chat`, `/api/version`) are forwarded transparently to your upstream Ollama server.
 
@@ -13,10 +13,10 @@ All standard Ollama endpoints (`/api/show`, `/api/tags`, `/api/generate`, `/api/
 
 ## ⚡ Quick Start
 
-### 1. Run instantly with `npx` (No installation needed)
+### 1. Run instantly with `npx` (No install needed)
 
 ```bash
-npx ollama-usage-proxy
+npx ollama-cloud-api
 ```
 
 ### 2. Run with Docker
@@ -24,11 +24,11 @@ npx ollama-usage-proxy
 ```bash
 # Using Docker
 docker run -d \
-  --name ollama-usage-proxy \
+  --name ollama-cloud-api \
   -p 11435:11435 \
   -e OLLAMA_HOST=http://host.docker.internal:11434 \
   --add-host=host.docker.internal:host-gateway \
-  ghcr.io/your-username/ollama-usage-proxy:latest
+  ghcr.io/your-username/ollama-cloud-api:latest
 
 # Or using Docker Compose
 docker compose up -d
@@ -37,8 +37,8 @@ docker compose up -d
 ### 3. Clone & Run with `pnpm`
 
 ```bash
-git clone https://github.com/your-username/ollama-usage-proxy.git
-cd ollama-usage-proxy
+git clone https://github.com/your-username/ollama-cloud-api.git
+cd ollama-cloud-api
 pnpm install
 pnpm build
 pnpm start
@@ -76,17 +76,17 @@ Open **[http://localhost:11435/docs](http://localhost:11435/docs)** in your brow
 
 ## ⚙️ Configuration
 
-You can configure the proxy using environment variables:
+Configure the service using standard environment variables:
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `PORT` | Port on which the proxy server will listen | `11435` |
+| `PORT` | Port on which the API server will listen | `11435` |
 | `OLLAMA_HOST` | URL of the upstream Ollama instance | `http://localhost:11434` |
 
 Example:
 
 ```bash
-PORT=8080 OLLAMA_HOST=http://192.168.1.100:11434 npx ollama-usage-proxy
+PORT=8080 OLLAMA_HOST=http://192.168.1.100:11434 npx ollama-cloud-api
 ```
 
 ---
@@ -103,7 +103,7 @@ pnpm build
 
 ### 2. Create the LaunchAgent Plist
 
-Save the following file to `~/Library/LaunchAgents/com.user.ollama-usage-proxy.plist`:
+Save the following file to `~/Library/LaunchAgents/com.user.ollama-cloud-api.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -111,22 +111,22 @@ Save the following file to `~/Library/LaunchAgents/com.user.ollama-usage-proxy.p
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.user.ollama-usage-proxy</string>
+    <string>com.user.ollama-cloud-api</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/bin/node</string>
-        <string>/path/to/ollama-usage-proxy/dist/index.js</string>
+        <string>/usr/local/bin/node</string>
+        <string>/path/to/ollama-cloud-api/dist/index.js</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/path/to/ollama-usage-proxy</string>
+    <string>/path/to/ollama-cloud-api</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/ollama-usage-proxy.log</string>
+    <string>/tmp/ollama-cloud-api.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/ollama-usage-proxy.error.log</string>
+    <string>/tmp/ollama-cloud-api.error.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PORT</key>
@@ -143,7 +143,7 @@ Save the following file to `~/Library/LaunchAgents/com.user.ollama-usage-proxy.p
 ### 3. Load & Start the Service
 
 ```bash
-launchctl load -w ~/Library/LaunchAgents/com.user.ollama-usage-proxy.plist
+launchctl load -w ~/Library/LaunchAgents/com.user.ollama-cloud-api.plist
 ```
 
 ---
@@ -210,7 +210,7 @@ curl "http://localhost:11435/api/leaderboard?category=Coding"
 Compares two or more models side-by-side.
 
 ```bash
-curl "http://localhost:11435/api/compare?models=glm-5.3-flash:cloud,glm-5.3:cloud"
+curl "http://localhost:11435/api/compare?models=glm-5.3-flash:cloud,deepseek-v4-flash:cloud"
 ```
 
 ---
@@ -324,7 +324,7 @@ curl http://localhost:11435/api/generate \
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/your-username/ollama-usage-proxy/issues).
+Contributions, issues, and feature requests are welcome! Feel free to open an issue or submit a PR.
 
 ---
 

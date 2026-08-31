@@ -1,7 +1,7 @@
 services:
-  ollama-usage-proxy:
+  ollama-cloud-api:
     build: .
-    container_name: ollama-usage-proxy
+    container_name: ollama-cloud-api
     restart: unless-stopped
     ports:
       - "11435:11435"

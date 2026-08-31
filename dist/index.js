@@ -579,9 +579,9 @@ function computeLeaderboard(benchmarkDataList, usageMap) {
 const openApiSpec = {
     openapi: "3.1.0",
     info: {
-        title: "Ollama Usage Proxy API",
+        title: "Ollama Cloud API",
         version: "1.0.0",
-        description: "A proxy service for the Ollama API that enriches Ollama Cloud models with live usage tiers (1=Low, 2=Medium, 3=High, 4=Extra High), scraped benchmarks, model recommendations, comparison, and leaderboards.",
+        description: "The missing API for Ollama Cloud models: live numeric usage tiers (1=Low, 2=Medium, 3=High, 4=Extra High), scraped benchmarks, model recommendations, comparisons, and leaderboards.",
     },
     servers: [
         {
@@ -927,7 +927,7 @@ const server = http.createServer(async (req, res) => {
         return res.end(`<!doctype html>
 <html>
   <head>
-    <title>Ollama Usage Proxy - API Reference</title>
+    <title>Ollama Cloud API - Documentation</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦙</text></svg>">
@@ -945,7 +945,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({
             status: "ok",
-            service: "ollama-usage-proxy",
+            service: "ollama-cloud-api",
             ollama_host: OLLAMA_HOST,
             docs_url: `http://localhost:${PORT}/docs`,
             openapi_url: `http://localhost:${PORT}/openapi.json`,
@@ -1568,7 +1568,7 @@ async function handleShowCloudAll(_req, res, parsedUrl, grouped = false, include
     }
 }
 server.listen(PORT, "0.0.0.0", () => {
-    console.log(`\n🚀 Ollama Usage Proxy is running at http://localhost:${PORT}`);
+    console.log(`\n🚀 Ollama Cloud API is running at http://localhost:${PORT}`);
     console.log(`📚 Interactive Docs (Scalar): http://localhost:${PORT}/docs`);
     console.log(`📑 OpenAPI Specification: http://localhost:${PORT}/openapi.json`);
     console.log(`🎯 Smart Recommendation: GET http://localhost:${PORT}/api/recommend?task=coding&max_usage=2`);

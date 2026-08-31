@@ -1,11 +1,11 @@
 {
-  "name": "ollama-usage-proxy",
+  "name": "ollama-cloud-api",
   "version": "1.0.0",
-  "description": "High-performance Ollama API proxy with live cloud usage tiers, benchmarks, and smart routing",
+  "description": "Missing API for Ollama Cloud models: live usage tiers, scraped benchmarks, task recommendations, comparisons, and leaderboards",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "ollama-usage-proxy": "./dist/index.js",
+    "ollama-cloud-api": "./dist/index.js",
     "ollama-proxy": "./dist/index.js"
   },
   "files": [
@@ -19,12 +19,13 @@
   },
   "keywords": [
     "ollama",
-    "proxy",
-    "usage",
+    "ollama-cloud",
+    "ollama-api",
     "benchmarks",
+    "model-router",
     "ai",
     "llm",
-    "router",
+    "proxy",
     "scalar",
     "openapi"
   ],
