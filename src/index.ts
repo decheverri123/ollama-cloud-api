@@ -906,25 +906,29 @@ function computeLeaderboard(
   > = {};
 
   for (const item of benchmarkDataList) {
+    const cloudTag = item.model;
+    const rawName = cloudTag.replace(/:cloud$/, "");
     const rows = item.data.rows || [];
+
     for (const row of rows) {
       const category = row.category || "General";
       if (!categoryModelScores[category]) {
         categoryModelScores[category] = {};
       }
 
-      for (const [modelName, score] of Object.entries(row.scores || {})) {
-        if (score === null || typeof score !== "number") continue;
-        if (!categoryModelScores[category][modelName]) {
-          categoryModelScores[category][modelName] = {
+      // Extract the score for this specific cloud model
+      const score = extractModelScore(row.scores || {}, rawName);
+      if (score !== null && typeof score === "number") {
+        if (!categoryModelScores[category][cloudTag]) {
+          categoryModelScores[category][cloudTag] = {
             total: 0,
             count: 0,
             benchmarks: {},
           };
         }
-        categoryModelScores[category][modelName].total += score;
-        categoryModelScores[category][modelName].count += 1;
-        categoryModelScores[category][modelName].benchmarks[row.benchmark] = score;
+        categoryModelScores[category][cloudTag].total += score;
+        categoryModelScores[category][cloudTag].count += 1;
+        categoryModelScores[category][cloudTag].benchmarks[row.benchmark] = score;
       }
     }
   }
@@ -933,21 +937,15 @@ function computeLeaderboard(
 
   for (const [category, modelsObj] of Object.entries(categoryModelScores)) {
     const ranked = Object.entries(modelsObj)
-      .map(([name, stat]) => {
+      .map(([cloudTag, stat]) => {
         const avg = Math.round((stat.total / stat.count) * 10) / 10;
-        // Attempt to find usage tier
-        let usage = 2;
-        for (const [mod, u] of usageMap.entries()) {
-          const matchedScore = extractModelScore({ [name]: 1 }, mod);
-          if (matchedScore !== null) {
-            usage = u;
-            break;
-          }
-        }
+        const rawName = cloudTag.replace(/:cloud$/, "");
+        const usage = usageMap.get(rawName) ?? getKnownModelTier(rawName)?.usage ?? 2;
 
         return {
           rank: 0,
-          model: name,
+          model: cloudTag,
+          source_model: cloudTag,
           average_score: avg,
           benchmarks_evaluated: stat.count,
           usage_tier: usage,
@@ -960,7 +958,9 @@ function computeLeaderboard(
       item.rank = index + 1;
     });
 
-    leaderboards[category] = ranked;
+    if (ranked.length > 0) {
+      leaderboards[category] = ranked;
+    }
   }
 
   return leaderboards;
