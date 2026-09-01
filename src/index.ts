@@ -991,6 +991,204 @@ function computeLeaderboard(
   return leaderboards;
 }
 
+interface RecommendOptions {
+  task?: string;
+  maxUsage?: number;
+  capabilities?: string[];
+  minContext?: number;
+  onlyInstalled?: boolean;
+}
+
+interface RecommendationResult {
+  task: string;
+  max_usage: number;
+  recommendation: string | null;
+  installed: boolean;
+  pull_command?: string;
+  usage_tier?: number;
+  score?: number;
+  reason?: string;
+  capabilities?: string[];
+  alternatives?: Array<Record<string, any>>;
+  message?: string;
+}
+
+/**
+ * Recommends the best cloud model for a task and constraints.
+ */
+async function recommendModel(options: RecommendOptions): Promise<RecommendationResult> {
+  const task = (options.task || "coding").toLowerCase();
+  const maxUsage = options.maxUsage ?? 4;
+  const reqCaps = (options.capabilities || []).map((c) => c.trim().toLowerCase());
+  const minContext = options.minContext || 0;
+  const onlyInstalled = options.onlyInstalled || false;
+
+  const [rawLocalModels, liveCatalog] = await Promise.all([
+    fetchOllamaTags(),
+    fetchLiveCloudCatalog(),
+  ]);
+
+  const localCloudModels = rawLocalModels.filter(isCloudModel);
+
+  const enrichedList = await Promise.all(
+    liveCatalog.map(async (catModel) => {
+      const name = catModel.name;
+      const localMatch = findLocalInstalledModel(name, localCloudModels);
+      const u = await fetchModelUsage(name);
+      const b = await fetchModelBenchmarks(name);
+
+      return {
+        name: catModel.cloud_tag,
+        installed: localMatch !== null,
+        installed_tag: localMatch ? localMatch.name || localMatch.model : null,
+        pull_command: catModel.pull_command,
+        description: catModel.description,
+        usage: u,
+        benchmarks: b,
+        details: localMatch?.details,
+        capabilities: localMatch?.capabilities || [],
+        model_info: localMatch?.model_info,
+      };
+    })
+  );
+
+  let candidates = enrichedList.filter((m) => {
+    if (onlyInstalled && !m.installed) return false;
+    if (m.usage > maxUsage) return false;
+
+    if (reqCaps.length > 0 && m.capabilities.length > 0) {
+      const caps = m.capabilities.map((c: string) => String(c).toLowerCase());
+      if (!reqCaps.every((c) => caps.includes(c))) return false;
+    }
+
+    const ctx =
+      m.model_info?.context_length ||
+      m.details?.context_length ||
+      m.model_info?.[`${m.details?.family}.context_length`] ||
+      0;
+    if (minContext > 0 && ctx > 0 && ctx < minContext) return false;
+
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    return {
+      task,
+      max_usage: maxUsage,
+      recommendation: null,
+      installed: false,
+      message: "No cloud models match the requested constraints.",
+    };
+  }
+
+  const scoredCandidates = candidates.map((m) => {
+    let score = 50;
+    let reason = "";
+
+    const name = m.name;
+    const caps = Array.isArray(m.capabilities)
+      ? m.capabilities.map((c: string) => String(c).toLowerCase())
+      : [];
+
+    score += (4 - m.usage) * 10;
+    if (m.installed) score += 5;
+
+    if (task === "coding") {
+      const rows = m.benchmarks?.rows || [];
+      const codingRows = rows.filter(
+        (r: any) =>
+          r.category?.toLowerCase() === "coding" ||
+          r.category?.toLowerCase() === "coding agent"
+      );
+      if (codingRows.length > 0) {
+        let total = 0;
+        let cnt = 0;
+        for (const r of codingRows) {
+          const scoreVal = extractModelScore(r.scores || {}, name);
+          if (typeof scoreVal === "number") {
+            total += scoreVal;
+            cnt += 1;
+          }
+        }
+        if (cnt > 0) {
+          const avg = total / cnt;
+          score += avg;
+          reason = `High coding benchmark average of ${Math.round(avg * 10) / 10}% on ${cnt} coding benchmarks`;
+        }
+      }
+      if (caps.includes("tools")) score += 15;
+      if (caps.includes("thinking")) score += 10;
+      if (!reason) reason = `Supports coding with capabilities [${caps.join(", ")}] at tier ${m.usage}`;
+    } else if (task === "agentic") {
+      const rows = m.benchmarks?.rows || [];
+      const agenticRows = rows.filter(
+        (r: any) =>
+          r.category?.toLowerCase() === "agentic" ||
+          r.category?.toLowerCase() === "general agent"
+      );
+      if (agenticRows.length > 0) {
+        let total = 0;
+        let cnt = 0;
+        for (const r of agenticRows) {
+          const scoreVal = extractModelScore(r.scores || {}, name);
+          if (typeof scoreVal === "number") {
+            total += scoreVal;
+            cnt += 1;
+          }
+        }
+        if (cnt > 0) {
+          const avg = total / cnt;
+          score += avg;
+          reason = `Top agentic benchmark average of ${Math.round(avg * 10) / 10}%`;
+        }
+      }
+      if (caps.includes("tools")) score += 25;
+      if (caps.includes("thinking")) score += 15;
+      if (!reason) reason = `Agent-ready model with tool calling at tier ${m.usage}`;
+    } else if (task === "vision") {
+      if (!caps.includes("vision")) {
+        score -= 100;
+      } else {
+        score += 40;
+        reason = `Multimodal vision model at usage tier ${m.usage}`;
+      }
+    } else if (task === "fast" || task === "cheap") {
+      score += (4 - m.usage) * 30;
+      reason = `Lowest usage tier (${m.usage}) for high throughput and quota preservation`;
+    } else {
+      score += (4 - m.usage) * 15;
+      reason = `Balanced general-purpose cloud model at tier ${m.usage}`;
+    }
+
+    return {
+      model: name,
+      installed: m.installed,
+      pull_command: m.pull_command,
+      usage: m.usage,
+      capabilities: caps,
+      score: Math.round(score * 10) / 10,
+      reason,
+    };
+  });
+
+  scoredCandidates.sort((a, b) => b.score - a.score);
+  const top = scoredCandidates[0];
+  const alternatives = scoredCandidates.slice(1, 4);
+
+  return {
+    task,
+    max_usage: maxUsage,
+    recommendation: top.model,
+    installed: top.installed,
+    pull_command: top.installed ? undefined : top.pull_command,
+    usage_tier: top.usage,
+    score: top.score,
+    reason: top.reason,
+    capabilities: top.capabilities,
+    alternatives,
+  };
+}
+
 /**
  * OpenAPI 3.1 Specification for Scalar docs
  */
@@ -1695,199 +1893,50 @@ const server = http.createServer(async (req, res) => {
 
   // 6. Smart Recommendation endpoint (/api/recommend)
   if (pathname === "/api/recommend" || pathname === "/recommend") {
-    const task = (parsedUrl.searchParams.get("task") || "coding").toLowerCase();
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", async () => {
+        try {
+          const payload = JSON.parse(body || "{}");
+          const result = await recommendModel({
+            task: payload.task,
+            maxUsage: payload.max_usage,
+            capabilities: payload.capability
+              ? String(payload.capability).split(",").map((c) => c.trim().toLowerCase())
+              : undefined,
+            minContext: payload.min_context,
+            onlyInstalled: payload.installed,
+          });
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(result, null, 2));
+        } catch (err: any) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: `Invalid JSON: ${err.message}` }));
+        }
+      });
+      return;
+    }
+
+    // GET
     const maxUsageParam = parsedUrl.searchParams.get("max_usage");
     const maxUsage = maxUsageParam ? parseInt(maxUsageParam, 10) : 4;
     const reqCaps = parsedUrl.searchParams.get("capability")
-      ? parsedUrl.searchParams
-          .get("capability")!
-          .split(",")
-          .map((c) => c.trim().toLowerCase())
+      ? parsedUrl.searchParams.get("capability")!.split(",").map((c) => c.trim().toLowerCase())
       : [];
     const minContextParam = parsedUrl.searchParams.get("min_context");
     const minContext = minContextParam ? parseInt(minContextParam, 10) : 0;
-    const onlyInstalled = parsedUrl.searchParams.get("installed") === "true";
 
     try {
-      const [rawLocalModels, liveCatalog] = await Promise.all([
-        fetchOllamaTags(),
-        fetchLiveCloudCatalog(),
-      ]);
-
-      const localCloudModels = rawLocalModels.filter(isCloudModel);
-
-      const enrichedList = await Promise.all(
-        liveCatalog.map(async (catModel) => {
-          const name = catModel.name;
-          const localMatch = findLocalInstalledModel(name, localCloudModels);
-          const u = await fetchModelUsage(name);
-          const b = await fetchModelBenchmarks(name);
-
-          return {
-            name: catModel.cloud_tag,
-            installed: localMatch !== null,
-            installed_tag: localMatch ? localMatch.name || localMatch.model : null,
-            pull_command: catModel.pull_command,
-            description: catModel.description,
-            usage: u,
-            benchmarks: b,
-            details: localMatch?.details,
-            capabilities: localMatch?.capabilities || [],
-            model_info: localMatch?.model_info,
-          };
-        })
-      );
-
-      let candidates = enrichedList.filter((m) => {
-        if (onlyInstalled && !m.installed) return false;
-        if (m.usage > maxUsage) return false;
-
-        if (reqCaps.length > 0 && m.capabilities.length > 0) {
-          const caps = m.capabilities.map((c: string) => String(c).toLowerCase());
-          if (!reqCaps.every((c) => caps.includes(c))) return false;
-        }
-
-        const ctx =
-          m.model_info?.context_length ||
-          m.details?.context_length ||
-          m.model_info?.[`${m.details?.family}.context_length`] ||
-          0;
-        if (minContext > 0 && ctx > 0 && ctx < minContext) return false;
-
-        return true;
+      const result = await recommendModel({
+        task: parsedUrl.searchParams.get("task") || "coding",
+        maxUsage,
+        capabilities: reqCaps,
+        minContext,
+        onlyInstalled: parsedUrl.searchParams.get("installed") === "true",
       });
-
-      if (candidates.length === 0) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        return res.end(
-          JSON.stringify(
-            {
-              task,
-              max_usage: maxUsage,
-              recommendation: null,
-              message: "No cloud models match the requested constraints.",
-            },
-            null,
-            2
-          )
-        );
-      }
-
-      // Rank candidates according to task
-      const scoredCandidates = candidates.map((m) => {
-        let score = 50;
-        let reason = "";
-
-        const name = m.name;
-        const caps = Array.isArray(m.capabilities)
-          ? m.capabilities.map((c: string) => String(c).toLowerCase())
-          : [];
-
-        // Bonus for low usage (efficiency)
-        score += (4 - m.usage) * 10;
-        if (m.installed) score += 5; // Preference for already installed models
-
-        if (task === "coding") {
-          const rows = m.benchmarks?.rows || [];
-          const codingRows = rows.filter(
-            (r: any) =>
-              r.category?.toLowerCase() === "coding" ||
-              r.category?.toLowerCase() === "coding agent"
-          );
-          if (codingRows.length > 0) {
-            let total = 0;
-            let cnt = 0;
-            for (const r of codingRows) {
-              const scoreVal = extractModelScore(r.scores || {}, name);
-              if (typeof scoreVal === "number") {
-                total += scoreVal;
-                cnt += 1;
-              }
-            }
-            if (cnt > 0) {
-              const avg = total / cnt;
-              score += avg;
-              reason = `High coding benchmark average of ${Math.round(avg * 10) / 10}% on ${cnt} coding benchmarks`;
-            }
-          }
-          if (caps.includes("tools")) score += 15;
-          if (caps.includes("thinking")) score += 10;
-          if (!reason) reason = `Supports coding with capabilities [${caps.join(", ")}] at tier ${m.usage}`;
-        } else if (task === "agentic") {
-          const rows = m.benchmarks?.rows || [];
-          const agenticRows = rows.filter(
-            (r: any) =>
-              r.category?.toLowerCase() === "agentic" ||
-              r.category?.toLowerCase() === "general agent"
-          );
-          if (agenticRows.length > 0) {
-            let total = 0;
-            let cnt = 0;
-            for (const r of agenticRows) {
-              const scoreVal = extractModelScore(r.scores || {}, name);
-              if (typeof scoreVal === "number") {
-                total += scoreVal;
-                cnt += 1;
-              }
-            }
-            if (cnt > 0) {
-              const avg = total / cnt;
-              score += avg;
-              reason = `Top agentic benchmark average of ${Math.round(avg * 10) / 10}%`;
-            }
-          }
-          if (caps.includes("tools")) score += 25;
-          if (caps.includes("thinking")) score += 15;
-          if (!reason) reason = `Agent-ready model with tool calling at tier ${m.usage}`;
-        } else if (task === "vision") {
-          if (!caps.includes("vision")) {
-            score -= 100;
-          } else {
-            score += 40;
-            reason = `Multimodal vision model at usage tier ${m.usage}`;
-          }
-        } else if (task === "fast" || task === "cheap") {
-          score += (4 - m.usage) * 30;
-          reason = `Lowest usage tier (${m.usage}) for high throughput and quota preservation`;
-        } else {
-          score += (4 - m.usage) * 15;
-          reason = `Balanced general-purpose cloud model at tier ${m.usage}`;
-        }
-
-        return {
-          model: name,
-          installed: m.installed,
-          pull_command: m.pull_command,
-          usage: m.usage,
-          capabilities: caps,
-          score: Math.round(score * 10) / 10,
-          reason,
-        };
-      });
-
-      scoredCandidates.sort((a, b) => b.score - a.score);
-      const top = scoredCandidates[0];
-      const alternatives = scoredCandidates.slice(1, 4);
-
       res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(
-        JSON.stringify(
-          {
-            task,
-            max_usage: maxUsage,
-            recommendation: top.model,
-            installed: top.installed,
-            pull_command: top.installed ? undefined : top.pull_command,
-            usage_tier: top.usage,
-            score: top.score,
-            reason: top.reason,
-            capabilities: top.capabilities,
-            alternatives,
-          },
-          null,
-          2
-        )
-      );
+      return res.end(JSON.stringify(result, null, 2));
     } catch (err: any) {
       res.writeHead(502, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ error: err.message }));
