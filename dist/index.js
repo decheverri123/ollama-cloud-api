@@ -1,12 +1,67 @@
 #!/usr/bin/env node
 import http from "http";
 import { URL } from "url";
+import { KNOWN_MODEL_BENCHMARKS } from "./benchmarks-data.js";
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
 const PORT = parseInt(process.env.PORT || "11435", 10);
-const usageCache = new Map();
-const benchmarkCache = new Map();
+/**
+ * Pre-cached model usage tiers (1-4) and token pricing ($/1M tokens)
+ * for all known Ollama Cloud models.
+ */
+export const KNOWN_MODEL_TIERS = {
+    "nemotron-3-nano": { usage: 1, pricing: { input: 0.06, output: 0.24, cached: 0.06 } },
+    "gpt-oss": { usage: 1, pricing: { input: 0.07, output: 0.30, cached: 0.035 } },
+    "gpt-oss:120b": { usage: 1, pricing: { input: 0.07, output: 0.30, cached: 0.035 } },
+    "gpt-oss:120b-cloud": { usage: 1, pricing: { input: 0.07, output: 0.30, cached: 0.035 } },
+    "nemotron-3-super": { usage: 1, pricing: { input: 0.015, output: 0.60, cached: 0.015 } },
+    "gemma4": { usage: 1, pricing: { input: 0.14, output: 0.40, cached: 0.05 } },
+    "gemma4:31b": { usage: 1, pricing: { input: 0.14, output: 0.40, cached: 0.05 } },
+    "gemma4:31b-cloud": { usage: 1, pricing: { input: 0.14, output: 0.40, cached: 0.05 } },
+    "glm-5.3-flash": { usage: 1, pricing: { input: 0.15, output: 0.50, cached: 0.03 } },
+    "minimax-m2.7": { usage: 2, pricing: { input: 0.30, output: 1.20, cached: 0.06 } },
+    "deepseek-v4-flash": { usage: 2, pricing: { input: 0.44, output: 1.32, cached: 0.014 } },
+    "mistral-large-3": { usage: 2, pricing: { input: 0.50, output: 1.50, cached: 0.50 } },
+    "minimax-m3": { usage: 2, pricing: { input: 0.60, output: 2.40, cached: 0.12 } },
+    "nemotron-3-ultra": { usage: 2, pricing: { input: 0.10, output: 3.00, cached: 0.10 } },
+    "qwen3.5": { usage: 3, pricing: { input: 0.60, output: 3.60, cached: 0.60 } },
+    "qwen3.5:397b": { usage: 3, pricing: { input: 0.60, output: 3.60, cached: 0.60 } },
+    "glm-5.1": { usage: 3, pricing: { input: 1.00, output: 3.20, cached: 0.20 } },
+    "deepseek-v4-pro": { usage: 3, pricing: { input: 1.32, output: 3.96, cached: 0.044 } },
+    "kimi-k2.7-code": { usage: 3, pricing: { input: 0.95, output: 4.00, cached: 0.19 } },
+    "kimi-k2.6": { usage: 3, pricing: { input: 0.95, output: 4.00, cached: 0.16 } },
+    "glm-5.2": { usage: 3, pricing: { input: 1.40, output: 4.40, cached: 0.26 } },
+    "glm-5.3": { usage: 3, pricing: { input: 1.40, output: 4.40, cached: 0.26 } },
+    "kimi-k3": { usage: 4, pricing: { input: 3.00, output: 15.00, cached: 0.30 } },
+};
+export const usageCache = new Map();
+// Seed usage cache with known tiers
+for (const [key, val] of Object.entries(KNOWN_MODEL_TIERS)) {
+    usageCache.set(key, {
+        usage: val.usage,
+        pricing: val.pricing,
+        timestamp: Date.now(),
+    });
+}
+export const benchmarkCache = new Map();
+// Seed benchmark cache with known benchmarks
+for (const [model, data] of Object.entries(KNOWN_MODEL_BENCHMARKS)) {
+    benchmarkCache.set(model, { data, timestamp: Date.now() });
+    benchmarkCache.set(`${model}:cloud`, { data, timestamp: Date.now() });
+}
 let liveCatalogCache = null;
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+/**
+ * Calculates numeric tier (1 - 4) from token costs per 1M tokens.
+ */
+export function calculateTierFromPricing(inputCost, outputCost) {
+    if (inputCost > 2.0 || outputCost > 5.0)
+        return 4; // Extra High
+    if (inputCost >= 0.8 || outputCost >= 3.2)
+        return 3; // High
+    if (inputCost >= 0.25 || outputCost >= 1.0)
+        return 2; // Medium
+    return 1; // Low
+}
 /**
  * Maps cloud usage string levels to numeric tiers (1 - 4):
  * 1 = Low
@@ -215,14 +270,26 @@ export function parseAllHtmlTables(displayHtml) {
     };
 }
 /**
- * Scrapes Ollama's library page for model benchmarks focusing on #display > table.
+ * Resolves Ollama model benchmarks. Checks pre-cached static benchmarks first,
+ * then falls back to live scraping from ollama.com.
  */
 export async function fetchModelBenchmarks(modelName) {
     const cached = benchmarkCache.get(modelName);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
         return cached.data;
     }
-    const cleanName = modelName.replace(/:cloud$/, "");
+    const cleanName = modelName.toLowerCase().trim().replace(/:cloud$/, "");
+    if (KNOWN_MODEL_BENCHMARKS[cleanName]) {
+        const data = KNOWN_MODEL_BENCHMARKS[cleanName];
+        benchmarkCache.set(modelName, { data, timestamp: Date.now() });
+        return data;
+    }
+    const base = cleanName.split(":")[0];
+    if (KNOWN_MODEL_BENCHMARKS[base]) {
+        const data = KNOWN_MODEL_BENCHMARKS[base];
+        benchmarkCache.set(modelName, { data, timestamp: Date.now() });
+        return data;
+    }
     const urls = [
         `https://ollama.com/library/${modelName}`,
         `https://ollama.com/library/${cleanName}`,
@@ -264,13 +331,55 @@ export async function fetchModelBenchmarks(modelName) {
     return null;
 }
 /**
- * Scrapes Ollama's library web page for the model's cloud usage level
- * and converts it to a tier number (1 - 4).
+ * Helper to match known model tiers from cache or static map.
+ */
+export function getKnownModelTier(modelName) {
+    const norm = modelName.toLowerCase().trim().replace(/:cloud$/, "");
+    if (KNOWN_MODEL_TIERS[norm]) {
+        return KNOWN_MODEL_TIERS[norm];
+    }
+    const base = norm.split(":")[0];
+    if (KNOWN_MODEL_TIERS[base]) {
+        return KNOWN_MODEL_TIERS[base];
+    }
+    return null;
+}
+/**
+ * Extracts token pricing ($ / 1M tokens) from Ollama model page HTML.
+ */
+export function parsePricingFromHtml(html) {
+    const inputMatch = html.match(/Cost[\s\S]*?\$([0-9\.]+)\s*<\/div>\s*<div[^>]*>input/i);
+    const outputMatch = html.match(/([0-9\.]+)\s*<\/div>\s*<div[^>]*>output/i);
+    const cachedMatch = html.match(/([0-9\.]+)\s*<\/div>\s*<div[^>]*>cached/i);
+    if (inputMatch && outputMatch) {
+        const input = parseFloat(inputMatch[1]);
+        const output = parseFloat(outputMatch[1]);
+        const cached = cachedMatch ? parseFloat(cachedMatch[1]) : undefined;
+        if (!isNaN(input) && !isNaN(output)) {
+            return { input, output, cached };
+        }
+    }
+    return null;
+}
+/**
+ * Resolves Ollama's model usage level into a numeric tier (1 - 4).
+ * Checks the pre-cached static tier catalog first, then falls back
+ * to scraping live token pricing or legacy usage badges from ollama.com.
  */
 export async function fetchModelUsage(modelName) {
     const cached = usageCache.get(modelName);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
         return cached.usage;
+    }
+    // Check known pre-cached static tiers
+    const known = getKnownModelTier(modelName);
+    if (known) {
+        usageCache.set(modelName, {
+            usage: known.usage,
+            pricing: known.pricing,
+            timestamp: Date.now(),
+        });
+        return known.usage;
     }
     const cleanName = modelName.replace(/:cloud$/, "");
     const urls = [
@@ -288,7 +397,35 @@ export async function fetchModelUsage(modelName) {
             if (!res.ok)
                 continue;
             const html = await res.text();
-            // Extract Usage section text
+            // 1. Check for token pricing (Cost / 1M tokens)
+            let pricing = parsePricingFromHtml(html);
+            if (!pricing) {
+                // If not found on root page, check if page links to a specific cloud tag page
+                const tagMatch = html.match(/\/library\/([^"]+cloud[^"]*)/i);
+                if (tagMatch) {
+                    try {
+                        const tagRes = await fetch(`https://ollama.com/library/${tagMatch[1]}`, {
+                            headers: {
+                                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)",
+                                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                            },
+                        });
+                        if (tagRes.ok) {
+                            const tagHtml = await tagRes.text();
+                            pricing = parsePricingFromHtml(tagHtml);
+                        }
+                    }
+                    catch {
+                        // Ignore tag fetch error
+                    }
+                }
+            }
+            if (pricing) {
+                const usage = calculateTierFromPricing(pricing.input, pricing.output);
+                usageCache.set(modelName, { usage, pricing, timestamp: Date.now() });
+                return usage;
+            }
+            // 2. Fallback: Extract legacy Usage section text if present
             const usageMatch = html.match(/Usage<\/div>\s*<div[^>]*>[\s\S]*?<span[^>]*class="[^"]*min-w-0 break-words[^"]*"[^>]*>([^<]+)<\/span>/i);
             if (usageMatch && usageMatch[1]) {
                 const usage = parseUsageLevel(usageMatch[1]);
@@ -300,6 +437,8 @@ export async function fetchModelUsage(modelName) {
             // Continue to next fallback URL
         }
     }
+    // Default fallback
+    usageCache.set(modelName, { usage: 1, timestamp: Date.now() });
     return 1;
 }
 /**
@@ -1502,7 +1641,18 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/cache/clear") {
         const count = usageCache.size + benchmarkCache.size;
         usageCache.clear();
+        for (const [key, val] of Object.entries(KNOWN_MODEL_TIERS)) {
+            usageCache.set(key, {
+                usage: val.usage,
+                pricing: val.pricing,
+                timestamp: Date.now(),
+            });
+        }
         benchmarkCache.clear();
+        for (const [model, data] of Object.entries(KNOWN_MODEL_BENCHMARKS)) {
+            benchmarkCache.set(model, { data, timestamp: Date.now() });
+            benchmarkCache.set(`${model}:cloud`, { data, timestamp: Date.now() });
+        }
         liveCatalogCache = null;
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({
