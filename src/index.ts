@@ -126,6 +126,23 @@ export function parseUsageLevel(usageText: string | null): number {
 }
 
 /**
+ * Extracts the usage tier from Ollama's new 4-bar usage meter on the
+ * per-model /tags page. Each bar is a span like
+ * `<span class="block h-1 w-4 rounded-full bg-neutral-800"></span>`;
+ * dark bars (bg-neutral-800) indicate the tier (1 - 4).
+ */
+export function parseUsageMeterFromHtml(html: string): number | null {
+  const meterMatch = html.match(
+    /<p[^>]*class="[^"]*col-span-2[^"]*flex items-center gap-0\.5[^"]*"[^>]*>([\s\S]*?)<\/p>/i
+  );
+  if (!meterMatch) return null;
+  const bars = meterMatch[1].match(/rounded-full bg-neutral-(\d+)/g);
+  if (!bars) return null;
+  const dark = bars.filter((b) => b.includes("bg-neutral-800")).length;
+  return dark < 1 ? null : Math.min(dark, 4);
+}
+
+/**
  * Checks if a model is an Ollama Cloud model.
  */
 export function isCloudModel(model: {
@@ -486,6 +503,9 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
   const urls = [
     `https://ollama.com/library/${modelName}`,
     `https://ollama.com/library/${cleanName}`,
+    // Usage tier moved to the per-model /tags page as a 4-bar meter.
+    `https://ollama.com/library/${modelName}/tags`,
+    `https://ollama.com/library/${cleanName}/tags`,
   ];
 
   for (const url of urls) {
@@ -541,6 +561,13 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
         const usage = parseUsageLevel(usageMatch[1]);
         usageCache.set(modelName, { usage, timestamp: Date.now() });
         return usage;
+      }
+
+      // 3. Fallback: Usage 4-bar meter on the /tags page (dark bars = tier 1-4)
+      const meterUsage = parseUsageMeterFromHtml(html);
+      if (meterUsage !== null) {
+        usageCache.set(modelName, { usage: meterUsage, timestamp: Date.now() });
+        return meterUsage;
       }
     } catch {
       // Continue to next fallback URL
