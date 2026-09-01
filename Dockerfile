@@ -4,7 +4,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm && pnpm config set ignore-scripts true
 
 COPY package.json pnpm-lock.yaml* tsconfig.json ./
 RUN pnpm install --frozen-lockfile
