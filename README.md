@@ -1,17 +1,35 @@
 # 🦙 ollama-cloud-api
 
+[![Live API](https://img.shields.io/badge/Live%20API-Render-46E3B7.svg?style=flat&logo=render)](https://ollama-cloud-api-4bbr.onrender.com)
+[![Interactive Docs](https://img.shields.io/badge/Docs-Scalar-blueviolet.svg)](https://ollama-cloud-api-4bbr.onrender.com/docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org)
 [![Docker Support](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![Interactive Docs](https://img.shields.io/badge/Docs-Scalar-blueviolet.svg)](http://localhost:11435/docs)
 
 The missing API for **Ollama Cloud models**: live numeric usage tiers (`1`–`4`), benchmark tables, smart task recommendations, head-to-head model comparisons, ranked leaderboards, and interactive web documentation powered by **Scalar**.
 
-All standard Ollama endpoints (`/api/show`, `/api/tags`, `/api/generate`, `/api/chat`, `/api/version`) are forwarded transparently to your upstream Ollama server.
+🌐 **Live API**: [https://ollama-cloud-api-4bbr.onrender.com](https://ollama-cloud-api-4bbr.onrender.com)  
+📚 **Live Interactive Docs**: [https://ollama-cloud-api-4bbr.onrender.com/docs](https://ollama-cloud-api-4bbr.onrender.com/docs)  
+📑 **Live OpenAPI Spec**: [https://ollama-cloud-api-4bbr.onrender.com/openapi.json](https://ollama-cloud-api-4bbr.onrender.com/openapi.json)
+
+All standard Ollama endpoints (`/api/show`, `/api/tags`, `/api/generate`, `/api/chat`, `/api/version`) are forwarded transparently to your upstream Ollama server when self-hosting.
 
 ---
 
-## ⚡ Quick Start
+## 🚀 Live Demo & Interactive Docs
+
+Try the API directly without installing anything:
+
+- **Interactive API Documentation (Scalar)**: [https://ollama-cloud-api-4bbr.onrender.com/docs](https://ollama-cloud-api-4bbr.onrender.com/docs)
+- **Catalog Overview & Tier Breakdown**: [`GET /api/overview`](https://ollama-cloud-api-4bbr.onrender.com/api/overview)
+- **Grouped by Usage Tier**: [`GET /api/show-cloud/grouped`](https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud/grouped)
+- **Model Recommendations**: [`GET /api/recommend?task=coding&max_usage=2`](https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=coding&max_usage=2)
+- **Ranked Leaderboards**: [`GET /api/leaderboard?category=Coding`](https://ollama-cloud-api-4bbr.onrender.com/api/leaderboard?category=Coding)
+- **Head-to-Head Comparison**: [`GET /api/compare?models=glm-5.3-flash:cloud,glm-5.3:cloud`](https://ollama-cloud-api-4bbr.onrender.com/api/compare?models=glm-5.3-flash:cloud,glm-5.3:cloud)
+
+---
+
+## ⚡ Self-Hosting Quick Start
 
 ### 1. Run instantly with `npx` (No install needed)
 
@@ -28,7 +46,7 @@ docker run -d \
   -p 11435:11435 \
   -e OLLAMA_HOST=http://host.docker.internal:11434 \
   --add-host=host.docker.internal:host-gateway \
-  ghcr.io/your-username/ollama-cloud-api:latest
+  ghcr.io/decheverri123/ollama-cloud-api:latest
 
 # Or using Docker Compose
 docker compose up -d
@@ -37,7 +55,7 @@ docker compose up -d
 ### 3. Clone & Run with `pnpm`
 
 ```bash
-git clone https://github.com/your-username/ollama-cloud-api.git
+git clone https://github.com/decheverri123/ollama-cloud-api.git
 cd ollama-cloud-api
 pnpm install
 pnpm build
@@ -48,7 +66,7 @@ pnpm start
 
 ## 📚 Interactive API Documentation (Scalar)
 
-Open **[http://localhost:11435/docs](http://localhost:11435/docs)** in your browser for a live, interactive API documentation portal powered by **Scalar** (with OpenAPI 3.1 specification at `/openapi.json`).
+Open **[https://ollama-cloud-api-4bbr.onrender.com/docs](https://ollama-cloud-api-4bbr.onrender.com/docs)** (or `http://localhost:11435/docs` when self-hosting) in your browser for a live, interactive API documentation portal powered by **Scalar** (with OpenAPI 3.1 specification at `/openapi.json`).
 
 ---
 
