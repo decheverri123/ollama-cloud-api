@@ -87,7 +87,7 @@ Open **[https://ollama-cloud-api-4bbr.onrender.com/docs](https://ollama-cloud-ap
 - **⚡ Lightweight Tags (`/api/tags-cloud`)**: Fast tags-compatible endpoint with `usage` tier for UI dropdowns & extensions.
 - **🔍 Query Filters & Sorting**: Filter by `usage`, `max_usage`, `min_usage`, `capability` (e.g. `tools,vision`), and sort by `usage`, `name`, or `size`.
 - **🏃 Process Monitoring (`/api/ps-cloud`)**: Check running cloud models with active usage tiers.
-- **⚡ In-Memory Caching & Cache Controls**: 10-minute TTL with `/api/cache/status` and `/api/cache/clear`.
+- **⚡ Pre-Cached Datasets & Long-Lived Caching**: 24-hour cache with zero-latency pre-cached known tiers and benchmarks, with `/api/cache/status` and `/api/cache/clear`.
 - **🌐 Full CORS Support**: Pre-configured headers for web apps and browser extensions.
 
 ---
@@ -174,10 +174,11 @@ Recommends the best cloud model for tasks based on benchmark scores, capabilitie
 
 ```bash
 # Best coding model with Low/Medium usage (tier <= 2)
-curl "http://localhost:11435/api/recommend?task=coding&max_usage=2"
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=coding&max_usage=2"
+# Local: curl "http://localhost:11435/api/recommend?task=coding&max_usage=2"
 
 # Best vision model with tool calling
-curl "http://localhost:11435/api/recommend?task=vision&capability=tools"
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=vision&capability=tools"
 ```
 
 #### Example Response
@@ -187,8 +188,10 @@ curl "http://localhost:11435/api/recommend?task=vision&capability=tools"
   "task": "coding",
   "max_usage": 2,
   "recommendation": "glm-5.3-flash:cloud",
-  "usage_tier": 2,
-  "score": 163,
+  "installed": false,
+  "pull_command": "ollama pull glm-5.3-flash:cloud",
+  "usage_tier": 1,
+  "score": 148,
   "reason": "High coding benchmark average of 68% on 3 coding benchmarks",
   "capabilities": [
     "completion",
@@ -199,13 +202,17 @@ curl "http://localhost:11435/api/recommend?task=vision&capability=tools"
   "alternatives": [
     {
       "model": "gemma4:cloud",
+      "installed": false,
+      "pull_command": "ollama pull gemma4:cloud",
       "usage": 1,
-      "score": 105,
+      "score": 80,
       "reason": "Supports coding with capabilities [completion, thinking, tools, vision] at tier 1"
     }
   ]
 }
 ```
+
+---
 
 ---
 
@@ -215,10 +222,11 @@ Ranks all models by category based on benchmark scores.
 
 ```bash
 # Full leaderboard across all domains
-curl http://localhost:11435/api/leaderboard
+curl https://ollama-cloud-api-4bbr.onrender.com/api/leaderboard
+# Local: curl http://localhost:11435/api/leaderboard
 
 # Coding domain only
-curl "http://localhost:11435/api/leaderboard?category=Coding"
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/leaderboard?category=Coding"
 ```
 
 ---
@@ -228,7 +236,8 @@ curl "http://localhost:11435/api/leaderboard?category=Coding"
 Compares two or more models side-by-side.
 
 ```bash
-curl "http://localhost:11435/api/compare?models=glm-5.3-flash:cloud,deepseek-v4-flash:cloud"
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/compare?models=glm-5.3-flash:cloud,deepseek-v4-flash:cloud"
+# Local: curl "http://localhost:11435/api/compare?models=glm-5.3-flash:cloud,deepseek-v4-flash:cloud"
 ```
 
 ---
@@ -238,7 +247,8 @@ curl "http://localhost:11435/api/compare?models=glm-5.3-flash:cloud,deepseek-v4-
 Dashboard metrics covering tier distributions, capabilities, 1M context counts, and benchmark coverage.
 
 ```bash
-curl http://localhost:11435/api/overview
+curl https://ollama-cloud-api-4bbr.onrender.com/api/overview
+# Local: curl http://localhost:11435/api/overview
 ```
 
 ---
@@ -249,10 +259,11 @@ Returns full model details (parameters, template, capabilities, model_info) and 
 
 ```bash
 # All cloud models
-curl http://localhost:11435/api/show-cloud
+curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud
+# Local: curl http://localhost:11435/api/show-cloud
 
 # Filter: Vision + Tools with Low/Medium usage sorted by lowest usage first
-curl "http://localhost:11435/api/show-cloud?max_usage=2&capability=vision,tools&sort=usage"
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?max_usage=2&capability=vision,tools&sort=usage"
 ```
 
 ---
@@ -263,10 +274,10 @@ Scrapes and extracts benchmark comparison tables (Coding, Agentic, Vision, Math)
 
 ```bash
 # Specific model
-curl "http://localhost:11435/api/benchmarks?model=glm-5.3-flash:cloud"
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/benchmarks?model=glm-5.3-flash:cloud"
 
 # All cloud models with benchmarks
-curl http://localhost:11435/api/benchmarks
+curl https://ollama-cloud-api-4bbr.onrender.com/api/benchmarks
 ```
 
 ---
@@ -276,7 +287,8 @@ curl http://localhost:11435/api/benchmarks
 Groups cloud models into categories: `1_low`, `2_medium`, `3_high`, `4_extra_high`.
 
 ```bash
-curl http://localhost:11435/api/show-cloud/grouped
+curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud/grouped
+# Local: curl http://localhost:11435/api/show-cloud/grouped
 ```
 
 ---
@@ -286,7 +298,8 @@ curl http://localhost:11435/api/show-cloud/grouped
 Returns lightweight tag records identical to `/api/tags`, enriched with `usage` tier. Supports filtering and sorting parameters.
 
 ```bash
-curl http://localhost:11435/api/tags-cloud
+curl https://ollama-cloud-api-4bbr.onrender.com/api/tags-cloud
+# Local: curl http://localhost:11435/api/tags-cloud
 ```
 
 ---
@@ -308,7 +321,8 @@ curl http://localhost:11435/api/ps-cloud
 Inspect cached usage & benchmark entries, ages, and remaining TTL.
 
 ```bash
-curl http://localhost:11435/api/cache/status
+curl https://ollama-cloud-api-4bbr.onrender.com/api/cache/status
+# Local: curl http://localhost:11435/api/cache/status
 ```
 
 #### Clear Cache (`POST /api/cache/clear`)
@@ -316,14 +330,15 @@ curl http://localhost:11435/api/cache/status
 Flush both usage and benchmark caches immediately.
 
 ```bash
-curl -X POST http://localhost:11435/api/cache/clear
+curl -X POST https://ollama-cloud-api-4bbr.onrender.com/api/cache/clear
+# Local: curl -X POST http://localhost:11435/api/cache/clear
 ```
 
 ---
 
 ### 11. Transparent Ollama Pass-Through
 
-All standard Ollama endpoints are forwarded directly:
+When self-hosting with an upstream Ollama instance, all standard Ollama endpoints are forwarded directly:
 
 ```bash
 # Standard show
