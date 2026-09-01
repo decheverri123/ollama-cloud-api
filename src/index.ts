@@ -41,8 +41,6 @@ export const KNOWN_MODEL_TIERS: Record<
   "mistral-large-3": { usage: 2, pricing: { input: 0.50, output: 1.50, cached: 0.50 } },
   "minimax-m3": { usage: 2, pricing: { input: 0.60, output: 2.40, cached: 0.12 } },
   "nemotron-3-ultra": { usage: 2, pricing: { input: 0.10, output: 3.00, cached: 0.10 } },
-  "qwen3.5": { usage: 3, pricing: { input: 0.60, output: 3.60, cached: 0.60 } },
-  "qwen3.5:397b": { usage: 3, pricing: { input: 0.60, output: 3.60, cached: 0.60 } },
   "glm-5.1": { usage: 3, pricing: { input: 1.00, output: 3.20, cached: 0.20 } },
   "deepseek-v4-pro": { usage: 3, pricing: { input: 1.32, output: 3.96, cached: 0.044 } },
   "kimi-k2.7-code": { usage: 3, pricing: { input: 0.95, output: 4.00, cached: 0.19 } },
