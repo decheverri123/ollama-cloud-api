@@ -979,8 +979,8 @@ const openApiSpec = {
   },
   servers: [
     {
-      url: `http://localhost:${PORT}`,
-      description: "Local Proxy Server",
+      url: "/",
+      description: "Current Host",
     },
   ],
   paths: {
@@ -1345,10 +1345,32 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const pathname = parsedUrl.pathname;
 
+  const host =
+    (req.headers["x-forwarded-host"] as string) ||
+    req.headers.host ||
+    `localhost:${PORT}`;
+  const proto =
+    (req.headers["x-forwarded-proto"] as string) ||
+    (host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https");
+  const baseUrl = `${proto}://${host}`;
+
   // 1. OpenAPI & Scalar Documentation
   if (pathname === "/openapi.json") {
+    const spec = {
+      ...openApiSpec,
+      servers: [
+        {
+          url: baseUrl,
+          description: "Current Server",
+        },
+        {
+          url: "/",
+          description: "Relative Path",
+        },
+      ],
+    };
     res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify(openApiSpec, null, 2));
+    return res.end(JSON.stringify(spec, null, 2));
   }
 
   if (pathname === "/docs" || pathname === "/reference") {
@@ -1379,8 +1401,8 @@ const server = http.createServer(async (req, res) => {
           status: "ok",
           service: "ollama-cloud-api",
           ollama_host: OLLAMA_HOST,
-          docs_url: `http://localhost:${PORT}/docs`,
-          openapi_url: `http://localhost:${PORT}/openapi.json`,
+          docs_url: `${baseUrl}/docs`,
+          openapi_url: `${baseUrl}/openapi.json`,
           endpoints: [
             "/api/show-cloud",
             "/api/show-cloud/grouped",
