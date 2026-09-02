@@ -9,6 +9,7 @@ async function fetchOllamaList(path: string): Promise<OllamaModelInfo[]> {
     const data = (await res.json()) as { models?: OllamaModelInfo[] };
     return data.models || [];
   } catch {
+    // Upstream Ollama unavailable; return empty list
     return [];
   }
 }

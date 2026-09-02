@@ -34,10 +34,10 @@ export const handleCompare = withError(async (
   );
 
   const allBenchmarkNames = new Set<string>();
-  for (const m of comparedModels) {
-    if (m.benchmarks?.rows) {
-      for (const r of m.benchmarks.rows) {
-        allBenchmarkNames.add(r.benchmark);
+  for (const model of comparedModels) {
+    if (model.benchmarks?.rows) {
+      for (const row of model.benchmarks.rows) {
+        allBenchmarkNames.add(row.benchmark);
       }
     }
   }
@@ -49,22 +49,22 @@ export const handleCompare = withError(async (
 
   for (const bName of allBenchmarkNames) {
     const scores: Record<string, number | string | null> = {};
-    for (const m of comparedModels) {
+    for (const model of comparedModels) {
       let score: number | string | null = null;
-      if (m.benchmarks?.rows) {
-        const foundRow = m.benchmarks.rows.find((r) => r.benchmark === bName);
+      if (model.benchmarks?.rows) {
+        const foundRow = model.benchmarks.rows.find((r) => r.benchmark === bName);
         if (foundRow) {
-          score = extractModelScore(foundRow.scores || {}, m.name);
+          score = extractModelScore(foundRow.scores || {}, model.name);
         }
       }
       if (score === null) {
         for (const other of comparedModels) {
-          if (other.name !== m.name && other.benchmarks?.rows) {
+          if (other.name !== model.name && other.benchmarks?.rows) {
             const foundRow = other.benchmarks.rows.find(
               (r) => r.benchmark === bName
             );
             if (foundRow) {
-              const crossScore = extractModelScore(foundRow.scores || {}, m.name);
+              const crossScore = extractModelScore(foundRow.scores || {}, model.name);
               if (crossScore !== null) {
                 score = crossScore;
                 break;
@@ -73,22 +73,22 @@ export const handleCompare = withError(async (
           }
         }
       }
-      scores[m.name] = score;
+      scores[model.name] = score;
     }
     benchmarkComparison.push({ benchmark: bName, scores });
   }
 
   sendJson(res, 200, {
-    compared_models: comparedModels.map((m) => ({
-      name: m.name,
-      installed: m.installed,
-      usage: m.usage,
-      parameter_size: m.details?.parameter_size,
-      quantization_level: m.details?.quantization_level,
-      capabilities: m.capabilities,
+    compared_models: comparedModels.map((model) => ({
+      name: model.name,
+      installed: model.installed,
+      usage: model.usage,
+      parameter_size: model.details?.parameter_size,
+      quantization_level: model.details?.quantization_level,
+      capabilities: model.capabilities,
       context_length:
-        (m.model_info?.context_length as number | undefined) ||
-        (m.model_info?.[`${m.details?.family}.context_length`] as number | undefined),
+        (model.model_info?.context_length as number | undefined) ||
+        (model.model_info?.[`${model.details?.family}.context_length`] as number | undefined),
     })),
     benchmark_comparison: benchmarkComparison,
   });

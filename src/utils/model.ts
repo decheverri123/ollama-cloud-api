@@ -8,9 +8,6 @@ export function calculateTierFromPricing(inputCost: number, outputCost: number):
   return 1; // Low
 }
 
-/**
- * Checks if a model is an Ollama Cloud model.
- */
 export function isCloudModel(model: OllamaModelInfo): boolean {
   return Boolean(
     model.remote_host ||
@@ -22,9 +19,6 @@ export function isCloudModel(model: OllamaModelInfo): boolean {
   );
 }
 
-/**
- * Helper to match known model tiers from cache or static map.
- */
 export function getKnownModelTier(
   modelName: string
 ): { usage: number; pricing: ModelPricing } | null {
@@ -39,9 +33,6 @@ export function getKnownModelTier(
   return null;
 }
 
-/**
- * Matches a cloud model slug against local installed models list.
- */
 export function findLocalInstalledModel(
   cloudSlug: string,
   localModels: OllamaModelInfo[]

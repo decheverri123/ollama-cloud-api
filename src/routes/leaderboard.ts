@@ -12,22 +12,22 @@ export const handleLeaderboard = withError(async (
   const liveCatalog = await fetchLiveCloudCatalog();
 
   const usageMap = new Map<string, number>();
-  const benchDataList: Array<{ model: string; data: Parameters<typeof computeLeaderboard>[0][number]["data"] }> = [];
+  const benchmarks: Array<{ model: string; data: Parameters<typeof computeLeaderboard>[0][number]["data"] }> = [];
 
   await Promise.all(
     liveCatalog.map(async (catModel) => {
       const name = catModel.name;
-      const u = await fetchModelUsage(name);
-      usageMap.set(name, u);
+      const usage = await fetchModelUsage(name);
+      usageMap.set(name, usage);
 
-      const b = await fetchModelBenchmarks(name);
-      if (b) {
-        benchDataList.push({ model: catModel.cloud_tag, data: b });
+      const modelBenchmarks = await fetchModelBenchmarks(name);
+      if (modelBenchmarks) {
+        benchmarks.push({ model: catModel.cloud_tag, data: modelBenchmarks });
       }
     })
   );
 
-  const leaderboards = computeLeaderboard(benchDataList, usageMap);
+  const leaderboards = computeLeaderboard(benchmarks, usageMap);
   const requestedCat = parsedUrl.searchParams.get("category");
 
   if (requestedCat && leaderboards[requestedCat]) {

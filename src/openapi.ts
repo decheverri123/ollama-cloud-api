@@ -1,6 +1,3 @@
-/**
- * OpenAPI 3.1 Specification for Scalar docs
- */
 export const openApiSpec = {
   openapi: "3.1.0",
   info: {

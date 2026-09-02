@@ -69,7 +69,7 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
               pricing = parsePricingFromHtml(tagHtml);
             }
           } catch {
-            // ignore
+            // Tag page unavailable; fall through to next URL strategy
           }
         }
       }
@@ -90,7 +90,7 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
         return usage;
       }
     } catch {
-      // try next URL
+      // URL unavailable; try next in rotation
     }
   }
 
@@ -127,7 +127,7 @@ export async function fetchCloudTagForModel(modelName: string): Promise<string |
       return tag;
     }
   } catch {
-    // ignore
+    // Cloud tag unavailable; caller falls back to derived tag
   }
 
   return undefined;
@@ -206,15 +206,15 @@ export async function fetchModelBenchmarks(
 
   const cleanName = modelName.toLowerCase().trim().replace(/:cloud$/, "");
   if (KNOWN_MODEL_BENCHMARKS[cleanName]) {
-    const data = KNOWN_MODEL_BENCHMARKS[cleanName];
-    benchmarkCache.set(modelName, { data, timestamp: Date.now() });
-    return data;
+    const benchmarks = KNOWN_MODEL_BENCHMARKS[cleanName];
+    benchmarkCache.set(modelName, { data: benchmarks, timestamp: Date.now() });
+    return benchmarks;
   }
   const base = cleanName.split(":")[0];
   if (KNOWN_MODEL_BENCHMARKS[base]) {
-    const data = KNOWN_MODEL_BENCHMARKS[base];
-    benchmarkCache.set(modelName, { data, timestamp: Date.now() });
-    return data;
+    const benchmarks = KNOWN_MODEL_BENCHMARKS[base];
+    benchmarkCache.set(modelName, { data: benchmarks, timestamp: Date.now() });
+    return benchmarks;
   }
 
   const urls = [
@@ -249,7 +249,7 @@ export async function fetchModelBenchmarks(
         }
       }
     } catch {
-      // try next URL
+      // URL unavailable; try next in rotation
     }
   }
 

@@ -1,6 +1,3 @@
-/**
- * Pre-cached benchmark tables scraped from Ollama Cloud model pages.
- */
 export const KNOWN_MODEL_BENCHMARKS: Record<string, any> = {
   "glm-5.3": {
     "models": [

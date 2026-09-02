@@ -31,9 +31,9 @@ export const handleOverview = withError(async (
   await Promise.all(
     liveCatalog.map(async (catModel) => {
       const name = catModel.name;
-      const u = await fetchModelUsage(name);
+      const usage = await fetchModelUsage(name);
       const key =
-        u === 1 ? "1_low" : u === 2 ? "2_medium" : u === 3 ? "3_high" : "4_extra_high";
+        usage === 1 ? "1_low" : usage === 2 ? "2_medium" : usage === 3 ? "3_high" : "4_extra_high";
       usageDist[key] = (usageDist[key] || 0) + 1;
 
       const localMatch = findLocalInstalledModel(name, localCloudModels);

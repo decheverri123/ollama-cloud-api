@@ -140,12 +140,12 @@ export async function recommendModel(options: RecommendOptions): Promise<Recomme
 
   const localCloudModels = rawLocalModels.filter(isCloudModel);
 
-  const enrichedList: EnrichedModel[] = await Promise.all(
+  const enrichedModels: EnrichedModel[] = await Promise.all(
     liveCatalog.map(async (catModel) => {
       const name = catModel.name;
       const localMatch = findLocalInstalledModel(name, localCloudModels);
-      const u = await fetchModelUsage(name);
-      const b = await fetchModelBenchmarks(name);
+      const usage = await fetchModelUsage(name);
+      const benchmarks = await fetchModelBenchmarks(name);
 
       const installed_tag = localMatch?.name || localMatch?.model || null;
 
@@ -155,8 +155,8 @@ export async function recommendModel(options: RecommendOptions): Promise<Recomme
         installed_tag,
         pull_command: catModel.pull_command,
         description: catModel.description,
-        usage: u,
-        benchmarks: b,
+        usage: usage,
+        benchmarks: benchmarks,
         details: localMatch?.details,
         capabilities: localMatch?.capabilities || [],
         model_info: localMatch?.model_info,
@@ -164,7 +164,7 @@ export async function recommendModel(options: RecommendOptions): Promise<Recomme
     })
   );
 
-  const candidates = enrichedList.filter((m) => {
+  const candidates = enrichedModels.filter((m) => {
     if (onlyInstalled && !m.installed) return false;
     if (m.usage > maxUsage) return false;
 

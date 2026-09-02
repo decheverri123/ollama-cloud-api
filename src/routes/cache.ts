@@ -46,6 +46,6 @@ export function handleCacheClear(
   const count = resetCaches();
   sendJson(res, 200, {
     status: "ok",
-    message: `Usage, benchmark, and catalog caches cleared successfully (${count} entries removed)`,
+    message: `Usage, benchmark, and catalog caches cleared (${count} entries removed)`,
   });
 }
