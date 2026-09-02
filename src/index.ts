@@ -2411,8 +2411,19 @@ const server = http.createServer(async (req, res) => {
         }
         return res.end(text);
       } catch (err: any) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: err.message }));
+        const status = typeof err?.status === "number" ? err.status : 502;
+        res.writeHead(status, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: "Failed to reach upstream Ollama server",
+            upstream: `${OLLAMA_HOST}${upstreamPath}`,
+            detail: err.message || String(err),
+            hint:
+              err.name === "TypeError" || /fetch failed/i.test(err.message || "")
+                ? `Could not connect to ${OLLAMA_HOST}. Is Ollama running? Check OLLAMA_HOST env var.`
+                : undefined,
+          })
+        );
       }
     });
     return;
