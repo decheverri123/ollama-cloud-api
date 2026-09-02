@@ -689,6 +689,19 @@ async function fetchOllamaPs(): Promise<Array<Record<string, any>>> {
   }
 }
 
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => resolve(body));
+  });
+}
+
+function parseCapabilities(value: unknown): string[] {
+  if (typeof value !== "string" || !value) return [];
+  return value.split(",").map((c) => c.trim().toLowerCase()).filter(Boolean);
+}
+
 async function getEnrichedModelData(
   modelName: string,
   verbose = true,
@@ -1354,6 +1367,123 @@ const openApiSpec = {
           },
         },
       },
+      post: {
+        summary: "Smart Model Recommendation (JSON Body)",
+        description:
+          "Same recommendation engine as the GET endpoint, accepting parameters in a JSON request body.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  task: {
+                    type: "string",
+                    enum: ["coding", "agentic", "vision", "fast", "cheap", "general"],
+                    example: "coding",
+                  },
+                  max_usage: { type: "integer", example: 2 },
+                  capability: { type: "string", example: "tools" },
+                  installed: { type: "boolean", example: true },
+                  min_context: { type: "integer", example: 262144 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Recommended model with reasoning and alternatives",
+            content: { "application/json": {} },
+          },
+        },
+      },
+    },
+    "/api/chat": {
+      post: {
+        summary: "Chat Completion (Cloud-Aware)",
+        description:
+          "Forwards a standard Ollama chat request to the upstream Ollama server. If 'model' is omitted and 'task' is provided, the best matching cloud model is selected automatically. Response includes the model's usage tier via the X-Model-Usage-Tier header.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  model: { type: "string", example: "glm-5.3-flash:cloud" },
+                  messages: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        role: { type: "string", example: "user" },
+                        content: { type: "string", example: "Hello!" },
+                      },
+                    },
+                  },
+                  stream: { type: "boolean", example: false },
+                  task: {
+                    type: "string",
+                    enum: ["coding", "agentic", "vision", "fast", "cheap", "general"],
+                    example: "coding",
+                  },
+                  max_usage: { type: "integer", example: 2 },
+                  capability: { type: "string", example: "tools" },
+                  min_context: { type: "integer", example: 262144 },
+                  installed: { type: "boolean", example: false },
+                },
+                required: ["messages"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Ollama chat response with optional usage_tier enrichment",
+            content: { "application/json": {} },
+          },
+        },
+      },
+    },
+    "/api/generate": {
+      post: {
+        summary: "Generate Completion (Cloud-Aware)",
+        description:
+          "Forwards a standard Ollama generate request to the upstream Ollama server. If 'model' is omitted and 'task' is provided, the best matching cloud model is selected automatically. Response includes the model's usage tier via the X-Model-Usage-Tier header.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  model: { type: "string", example: "glm-5.3-flash:cloud" },
+                  prompt: { type: "string", example: "Write a quicksort in Python." },
+                  stream: { type: "boolean", example: false },
+                  task: {
+                    type: "string",
+                    enum: ["coding", "agentic", "vision", "fast", "cheap", "general"],
+                    example: "coding",
+                  },
+                  max_usage: { type: "integer", example: 2 },
+                  capability: { type: "string", example: "tools" },
+                  min_context: { type: "integer", example: 262144 },
+                  installed: { type: "boolean", example: false },
+                },
+                required: ["prompt"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Ollama generate response with optional usage_tier enrichment",
+            content: { "application/json": {} },
+          },
+        },
+      },
     },
     "/api/leaderboard": {
       get: {
@@ -1630,6 +1760,8 @@ const server = http.createServer(async (req, res) => {
             "/api/show-cloud",
             "/api/show-cloud/grouped",
             "/api/recommend",
+            "/api/chat",
+            "/api/generate",
             "/api/leaderboard",
             "/api/compare?models=<m1>,<m2>",
             "/api/overview",
@@ -1894,36 +2026,28 @@ const server = http.createServer(async (req, res) => {
   // 6. Smart Recommendation endpoint (/api/recommend)
   if (pathname === "/api/recommend" || pathname === "/recommend") {
     if (req.method === "POST") {
-      let body = "";
-      req.on("data", (chunk) => (body += chunk));
-      req.on("end", async () => {
-        try {
-          const payload = JSON.parse(body || "{}");
-          const result = await recommendModel({
-            task: payload.task,
-            maxUsage: payload.max_usage,
-            capabilities: payload.capability
-              ? String(payload.capability).split(",").map((c) => c.trim().toLowerCase())
-              : undefined,
-            minContext: payload.min_context,
-            onlyInstalled: payload.installed,
-          });
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result, null, 2));
-        } catch (err: any) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: `Invalid JSON: ${err.message}` }));
-        }
-      });
-      return;
+      try {
+        const body = await readBody(req);
+        const payload = JSON.parse(body || "{}");
+        const result = await recommendModel({
+          task: payload.task,
+          maxUsage: payload.max_usage,
+          capabilities: parseCapabilities(payload.capability),
+          minContext: payload.min_context,
+          onlyInstalled: payload.installed,
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify(result, null, 2));
+      } catch (err: any) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ error: `Invalid JSON: ${err.message}` }));
+      }
     }
 
     // GET
     const maxUsageParam = parsedUrl.searchParams.get("max_usage");
     const maxUsage = maxUsageParam ? parseInt(maxUsageParam, 10) : 4;
-    const reqCaps = parsedUrl.searchParams.get("capability")
-      ? parsedUrl.searchParams.get("capability")!.split(",").map((c) => c.trim().toLowerCase())
-      : [];
+    const reqCaps = parseCapabilities(parsedUrl.searchParams.get("capability"));
     const minContextParam = parsedUrl.searchParams.get("min_context");
     const minContext = minContextParam ? parseInt(minContextParam, 10) : 0;
 
@@ -2188,22 +2312,113 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST") {
-      let body = "";
-      req.on("data", (chunk) => (body += chunk));
-      req.on("end", async () => {
-        try {
-          const payload = JSON.parse(body || "{}");
-          await handleShowCloud(req, res, payload);
-        } catch (err: any) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: `Invalid JSON: ${err.message}` }));
-        }
-      });
+      try {
+        const body = await readBody(req);
+        const payload = JSON.parse(body || "{}");
+        await handleShowCloud(req, res, payload);
+      } catch (err: any) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: `Invalid JSON: ${err.message}` }));
+      }
       return;
     }
   }
 
-  // 13. Forward any other Ollama API request transparently (e.g. /api/show, /api/tags, /api/version, /api/generate)
+  // 13. Cloud-aware completions (/api/chat, /api/generate)
+  if ((pathname === "/api/chat" || pathname === "/api/generate") && req.method === "POST") {
+    const upstreamPath = pathname; // /api/chat or /api/generate
+    const bodyField = pathname === "/api/chat" ? "messages" : "prompt";
+
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+
+        // Auto-select a model when none is provided but recommendation hints are present.
+        let recommendationReason: string | undefined;
+        if (!payload.model && payload.task) {
+          const rec = await recommendModel({
+            task: payload.task,
+            maxUsage: payload.max_usage,
+            capabilities: payload.capability
+              ? String(payload.capability).split(",").map((c) => c.trim().toLowerCase())
+              : undefined,
+            minContext: payload.min_context,
+            onlyInstalled: payload.installed,
+          });
+          if (rec.recommendation) {
+            payload.model = rec.recommendation;
+            recommendationReason = rec.reason;
+          }
+        }
+
+        if (!payload.model) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ error: `Missing 'model' field in ${pathname.slice(5)} request` }));
+        }
+
+        if (!payload[bodyField]) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ error: `Missing '${bodyField}' field in ${pathname.slice(5)} request` }));
+        }
+
+        const usage = await fetchModelUsage(payload.model);
+
+        const proxyRes = await fetch(`${OLLAMA_HOST}${upstreamPath}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const responseHeaders: Record<string, string> = {
+          "Content-Type": proxyRes.headers.get("Content-Type") || "application/json",
+          "X-Model-Usage-Tier": String(usage),
+        };
+        if (recommendationReason) {
+          responseHeaders["X-Recommendation-Reason"] = recommendationReason;
+        }
+
+        res.writeHead(proxyRes.status, responseHeaders);
+
+        if (payload.stream && proxyRes.body) {
+          const reader = proxyRes.body.getReader();
+          const pump = () =>
+            reader.read().then(({ done, value }) => {
+              if (done) {
+                res.end();
+                return;
+              }
+              res.write(value);
+              pump();
+            });
+          pump();
+          return;
+        }
+
+        const text = await proxyRes.text();
+        if (!payload.stream) {
+          try {
+            const json = JSON.parse(text);
+            json.usage_tier = usage;
+            if (recommendationReason) {
+              json.recommendation_reason = recommendationReason;
+            }
+            return res.end(JSON.stringify(json));
+          } catch {
+            // Not JSON; return upstream text unchanged.
+          }
+        }
+        return res.end(text);
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // 14. Forward any other Ollama API request transparently (e.g. /api/show, /api/tags, /api/version)
   try {
     const targetUrl = `${OLLAMA_HOST}${req.url}`;
     const headers: Record<string, string> = {};
@@ -2346,6 +2561,8 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`📚 Interactive Docs (Scalar): http://localhost:${PORT}/docs`);
   console.log(`📑 OpenAPI Specification: http://localhost:${PORT}/openapi.json`);
   console.log(`🎯 Smart Recommendation: GET http://localhost:${PORT}/api/recommend?task=coding&max_usage=2`);
+  console.log(`💬 Cloud Chat Completion: POST http://localhost:${PORT}/api/chat`);
+  console.log(`⚡ Cloud Generate: POST http://localhost:${PORT}/api/generate`);
   console.log(`🏆 Benchmarks Leaderboard: GET http://localhost:${PORT}/api/leaderboard`);
   console.log(`⚖️ Model Comparison: GET http://localhost:${PORT}/api/compare?models=glm-5.3-flash:cloud,glm-5.3:cloud`);
   console.log(`📊 Catalog Overview: GET http://localhost:${PORT}/api/overview`);

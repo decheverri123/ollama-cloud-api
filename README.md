@@ -24,6 +24,7 @@ Try the API directly without installing anything:
 - **Catalog Overview & Tier Breakdown**: [`GET /api/overview`](https://ollama-cloud-api-4bbr.onrender.com/api/overview)
 - **Grouped by Usage Tier**: [`GET /api/show-cloud/grouped`](https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud/grouped)
 - **Model Recommendations**: [`GET /api/recommend?task=coding&max_usage=2`](https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=coding&max_usage=2)
+- **Cloud Chat Completion**: [`POST /api/chat`](https://ollama-cloud-api-4bbr.onrender.com/api/chat)
 - **Ranked Leaderboards**: [`GET /api/leaderboard?category=Coding`](https://ollama-cloud-api-4bbr.onrender.com/api/leaderboard?category=Coding)
 - **Head-to-Head Comparison**: [`GET /api/compare?models=glm-5.3-flash:cloud,glm-5.3:cloud`](https://ollama-cloud-api-4bbr.onrender.com/api/compare?models=glm-5.3-flash:cloud,glm-5.3:cloud)
 
@@ -79,6 +80,7 @@ Open **[https://ollama-cloud-api-4bbr.onrender.com/docs](https://ollama-cloud-ap
   - `3` = **High**
   - `4` = **Extra High**
 - **🎯 Smart Task Router (`/api/recommend`)**: Recommends the highest-performing cloud model for tasks (coding, agentic, vision, fast, cheap) within usage limits.
+- **💬 Cloud-Aware Chat (`POST /api/chat`)**: Standard Ollama chat endpoint that can auto-select a model from a task description and returns the model's usage tier.
 - **🏆 Ranked Leaderboards (`/api/leaderboard`)**: Ranks all cloud models by domain (Coding, Agentic, Vision, Math) based on scraped benchmark averages.
 - **⚖️ Head-to-Head Comparison (`/api/compare`)**: Side-by-side diff of context length, active parameters, usage tiers, and benchmark scores between models.
 - **📊 Catalog Analytics (`/api/overview`)**: High-level inventory dashboard covering usage distributions, capability counts, and benchmark coverage.
@@ -170,7 +172,7 @@ launchctl load -w ~/Library/LaunchAgents/com.user.ollama-cloud-api.plist
 
 ### 1. `GET /api/recommend` (Smart Model Recommendation)
 
-Recommends the best cloud model for tasks based on benchmark scores, capabilities, and usage constraints.
+Recommends the best cloud model for tasks based on benchmark scores, capabilities, and usage constraints. The same engine is also available via `POST /api/recommend` with a JSON body.
 
 ```bash
 # Best coding model with Low/Medium usage (tier <= 2)
@@ -179,6 +181,11 @@ curl "https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=coding&max_u
 
 # Best vision model with tool calling
 curl "https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=vision&capability=tools"
+
+# POST with JSON body
+curl -X POST https://ollama-cloud-api-4bbr.onrender.com/api/recommend \
+  -H "Content-Type: application/json" \
+  -d '{"task": "coding", "max_usage": 2, "capability": "tools"}'
 ```
 
 #### Example Response
@@ -216,7 +223,34 @@ curl "https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=vision&capab
 
 ---
 
-### 2. `GET /api/leaderboard` (Ranked Benchmarks Leaderboard)
+### 2. `POST /api/chat` (Cloud-Aware Chat Completion)
+
+Forwards a standard Ollama chat request to the upstream Ollama server. If you omit `model` and provide a `task`, the best matching cloud model is selected automatically. The response includes the selected model's usage tier in the `X-Model-Usage-Tier` header (and in the JSON body for non-streaming responses).
+
+```bash
+# Chat with an explicit model
+curl -X POST https://ollama-cloud-api-4bbr.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "glm-5.3-flash:cloud",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": false
+  }'
+
+# Auto-select the best coding model under tier 3
+curl -X POST https://ollama-cloud-api-4bbr.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task": "coding",
+    "max_usage": 2,
+    "messages": [{"role": "user", "content": "Write a quicksort in Python"}],
+    "stream": false
+  }'
+```
+
+---
+
+### 3. `GET /api/leaderboard` (Ranked Benchmarks Leaderboard)
 
 Ranks all models by category based on benchmark scores.
 
@@ -231,7 +265,7 @@ curl "https://ollama-cloud-api-4bbr.onrender.com/api/leaderboard?category=Coding
 
 ---
 
-### 3. `GET /api/compare` (Head-to-Head Comparison)
+### 4. `GET /api/compare` (Head-to-Head Comparison)
 
 Compares two or more models side-by-side.
 
@@ -242,7 +276,7 @@ curl "https://ollama-cloud-api-4bbr.onrender.com/api/compare?models=glm-5.3-flas
 
 ---
 
-### 4. `GET /api/overview` (Catalog Analytics & Inventory)
+### 5. `GET /api/overview` (Catalog Analytics & Inventory)
 
 Dashboard metrics covering tier distributions, capabilities, 1M context counts, and benchmark coverage.
 
@@ -253,7 +287,7 @@ curl https://ollama-cloud-api-4bbr.onrender.com/api/overview
 
 ---
 
-### 5. `GET /api/show-cloud` (Full Cloud Model Details)
+### 6. `GET /api/show-cloud` (Full Cloud Model Details)
 
 Returns full model details (parameters, template, capabilities, model_info) and numeric `usage` (1–4) for cloud models.
 
@@ -268,7 +302,7 @@ curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?max_usage=2&capa
 
 ---
 
-### 6. `GET /api/benchmarks` (Model Benchmarks)
+### 7. `GET /api/benchmarks` (Model Benchmarks)
 
 Scrapes and extracts benchmark comparison tables (Coding, Agentic, Vision, Math) from the model's Ollama library page.
 
@@ -282,7 +316,7 @@ curl https://ollama-cloud-api-4bbr.onrender.com/api/benchmarks
 
 ---
 
-### 7. `GET /api/show-cloud/grouped` (Grouped by Tier)
+### 8. `GET /api/show-cloud/grouped` (Grouped by Tier)
 
 Groups cloud models into categories: `1_low`, `2_medium`, `3_high`, `4_extra_high`.
 
@@ -293,7 +327,7 @@ curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud/grouped
 
 ---
 
-### 8. `GET /api/tags-cloud` (Lightweight Cloud Tags)
+### 9. `GET /api/tags-cloud` (Lightweight Cloud Tags)
 
 Returns lightweight tag records identical to `/api/tags`, enriched with `usage` tier. Supports filtering and sorting parameters.
 
@@ -304,7 +338,7 @@ curl https://ollama-cloud-api-4bbr.onrender.com/api/tags-cloud
 
 ---
 
-### 9. `GET /api/ps-cloud` (Running Cloud Models)
+### 10. `GET /api/ps-cloud` (Running Cloud Models)
 
 Lists currently loaded / running cloud models with their active usage tier.
 
@@ -314,7 +348,7 @@ curl http://localhost:11435/api/ps-cloud
 
 ---
 
-### 10. Cache Management
+### 11. Cache Management
 
 #### Cache Status (`GET /api/cache/status`)
 
@@ -336,7 +370,7 @@ curl -X POST https://ollama-cloud-api-4bbr.onrender.com/api/cache/clear
 
 ---
 
-### 11. Transparent Ollama Pass-Through
+### 12. Transparent Ollama Pass-Through
 
 When self-hosting with an upstream Ollama instance, all standard Ollama endpoints are forwarded directly:
 
