@@ -11,7 +11,6 @@ import {
   decodeHtmlEntities,
   parsePricingFromHtml,
   parseUsageLevel,
-  parseUsageMeterFromHtml,
   parseMarkdownTable,
   parseAllHtmlTables,
 } from "../utils/html.js";
@@ -82,19 +81,13 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
       }
 
       const usageMatch = html.match(
-        /Usage<\/div>\s*<div[^>]*>[\s\S]*?<span[^>]*class="[^"]*min-w-0 break-words[^"]*"[^>]*>([^<]+)<\/span>/i
+        /•\s*(Low|Medium|High|Extra High|Very High)\s+Usage\s*•/i
       );
 
       if (usageMatch && usageMatch[1]) {
         const usage = parseUsageLevel(usageMatch[1]);
         usageCache.set(modelName, { usage, timestamp: Date.now() });
         return usage;
-      }
-
-      const meterUsage = parseUsageMeterFromHtml(html);
-      if (meterUsage !== null) {
-        usageCache.set(modelName, { usage: meterUsage, timestamp: Date.now() });
-        return meterUsage;
       }
     } catch {
       // try next URL
@@ -103,6 +96,41 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
 
   usageCache.set(modelName, { usage: 1, timestamp: Date.now() });
   return 1;
+}
+
+export function getCloudTagForModel(modelName: string): string | undefined {
+  const cached = usageCache.get(modelName);
+  return cached?.cloud_tag;
+}
+
+export async function fetchCloudTagForModel(modelName: string): Promise<string | undefined> {
+  const cached = usageCache.get(modelName);
+  if (cached?.cloud_tag) return cached.cloud_tag;
+
+  const cleanName = modelName.replace(/:cloud$/, "").replace(/:.+-cloud$/, "");
+  const url = `https://ollama.com/library/${cleanName}/tags`;
+
+  try {
+    const res = await fetch(url, { headers: DEFAULT_HEADERS });
+    if (!res.ok) return undefined;
+
+    const html = await res.text();
+
+    const cloudTagMatch = html.match(
+      /<a[^>]*href="\/library\/([^"]+cloud[^"]*)"[^>]*>([^<]*)<\/a>/i
+    );
+
+    if (cloudTagMatch && cloudTagMatch[2]) {
+      const tag = cloudTagMatch[2].trim();
+      const existing = usageCache.get(modelName) || { usage: 1, timestamp: Date.now() };
+      usageCache.set(modelName, { ...existing, cloud_tag: tag });
+      return tag;
+    }
+  } catch {
+    // ignore
+  }
+
+  return undefined;
 }
 
 export async function fetchLiveCloudCatalog(): Promise<LiveCloudModelInfo[]> {
@@ -148,6 +176,16 @@ export async function fetchLiveCloudCatalog(): Promise<LiveCloudModelInfo[]> {
 
     if (models.length > 0) {
       setLiveCatalogCache({ models, timestamp: Date.now() });
+
+      for (const model of models) {
+        fetchCloudTagForModel(model.name).then((cloudTag) => {
+          if (cloudTag) {
+            model.cloud_tag = cloudTag;
+            model.pull_command = `ollama pull ${cloudTag}`;
+          }
+        }).catch(() => {});
+      }
+
       return models;
     }
   } catch (err) {

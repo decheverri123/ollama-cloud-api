@@ -7,6 +7,7 @@ export interface ModelPricing {
 export interface UsageCacheEntry {
   usage: number;
   pricing?: ModelPricing;
+  cloud_tag?: string;
   timestamp: number;
 }
 

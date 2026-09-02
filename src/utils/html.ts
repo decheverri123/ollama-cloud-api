@@ -32,7 +32,7 @@ export function parsePricingFromHtml(html: string): ModelPricing | null {
 
 export function parseUsageLevel(usageText: string | null): number {
   if (!usageText) return 1;
-  const normalized = usageText.trim().toLowerCase();
+  const normalized = usageText.trim().toLowerCase().replace(/\s*usage\s*$/, "");
   switch (normalized) {
     case "low":
       return 1;
@@ -49,23 +49,6 @@ export function parseUsageLevel(usageText: string | null): number {
       const num = parseInt(normalized, 10);
       return isNaN(num) || num < 1 ? 1 : Math.min(num, 4);
   }
-}
-
-/**
- * Extracts the usage tier from Ollama's 4-bar usage meter on the
- * per-model /tags page. Each bar is a span like
- * `<span class="block h-1 w-4 rounded-full bg-neutral-800"></span>`;
- * dark bars (bg-neutral-800) indicate the tier (1 - 4).
- */
-export function parseUsageMeterFromHtml(html: string): number | null {
-  const meterMatch = html.match(
-    /<p[^>]*class="[^"]*col-span-2[^"]*flex items-center gap-0\.5[^"]*"[^>]*>([\s\S]*?)<\/p>/i
-  );
-  if (!meterMatch) return null;
-  const bars = meterMatch[1].match(/rounded-full bg-neutral-(\d+)/g);
-  if (!bars) return null;
-  const dark = bars.filter((b) => b.includes("bg-neutral-800")).length;
-  return dark < 1 ? null : Math.min(dark, 4);
 }
 
 export function parseMarkdownTable(tableText: string): ParsedBenchmarkTable | null {
