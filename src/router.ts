@@ -4,13 +4,12 @@ import { getOpenApiSpecWithHost, renderDocsHtml } from "./openapi.js";
 import { readBody, sendJson, sendError } from "./utils/http.js";
 import { PORT, OLLAMA_HOST } from "./config.js";
 
-import { handleShowCloud, handleShowCloudAll } from "./routes/show-cloud.js";
+import { handleCloudModels } from "./services/cloud-models.js";
 import { handleRecommend } from "./routes/recommend.js";
 import { handleLeaderboard } from "./routes/leaderboard.js";
 import { handleCompare } from "./routes/compare.js";
 import { handleOverview } from "./routes/overview.js";
 import { handleBenchmarks } from "./routes/benchmarks.js";
-import { handleTagsCloud } from "./routes/tags-cloud.js";
 import { handlePsCloud } from "./routes/ps-cloud.js";
 import { handleCacheStatus, handleCacheClear } from "./routes/cache.js";
 import { handleCompletions } from "./routes/completions.js";
@@ -115,47 +114,18 @@ export function createRouter() {
       return handleCacheClear(req, res);
     }
 
-    if (pathname === "/api/tags-cloud" || pathname === "/tags-cloud") {
-      return handleTagsCloud(req, res, parsedUrl);
+    // Consolidated handler for both show-cloud and tags-cloud (including subpaths)
+    if (
+      pathname.startsWith("/api/show-cloud") || 
+      pathname.startsWith("/show-cloud") ||
+      pathname.startsWith("/api/tags-cloud") ||
+      pathname.startsWith("/tags-cloud")
+    ) {
+      return handleCloudModels(req, res, parsedUrl);
     }
 
     if (pathname === "/api/ps-cloud" || pathname === "/ps-cloud") {
       return handlePsCloud(req, res);
-    }
-
-    if (
-      pathname === "/api/show-cloud/grouped" ||
-      pathname === "/show-cloud/grouped"
-    ) {
-      return handleShowCloudAll(req, res, parsedUrl, true);
-    }
-
-    if (pathname === "/api/show-cloud" || pathname === "/show-cloud") {
-      const includeBenchmarks = parsedUrl.searchParams.get("benchmarks") === "true";
-
-      if (req.method === "GET") {
-        const model = parsedUrl.searchParams.get("model");
-        const isGrouped = parsedUrl.searchParams.get("grouped") === "true";
-        if (!model) {
-          return handleShowCloudAll(req, res, parsedUrl, isGrouped, includeBenchmarks);
-        }
-        return handleShowCloud(req, res, {
-          model,
-          verbose: true,
-          benchmarks: includeBenchmarks,
-        });
-      }
-
-      if (req.method === "POST") {
-        try {
-          const body = await readBody(req);
-          const payload = JSON.parse(body || "{}");
-          return handleShowCloud(req, res, payload);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          return sendError(res, 400, `Invalid JSON: ${message}`);
-        }
-      }
     }
 
     // Handle chat and generate endpoints with special cloud-aware logic
