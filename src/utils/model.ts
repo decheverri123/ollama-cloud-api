@@ -12,8 +12,6 @@ export function isCloudModel(model: OllamaModelInfo): boolean {
   return Boolean(
     model.remote_host ||
       model.remote_model ||
-      model.name?.endsWith(":cloud") ||
-      model.model?.endsWith(":cloud") ||
       model.name?.includes(":cloud") ||
       model.model?.includes(":cloud")
   );

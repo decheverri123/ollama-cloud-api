@@ -33,7 +33,7 @@ export const handleTagsCloud = withError(async (
         model: catModel.name,
         description: catModel.description,
         installed: localMatch !== null,
-        installed_tag: localMatch ? localMatch.name || localMatch.model : null,
+        installed_tag: localMatch?.name || localMatch?.model || null,
         pull_command: catModel.pull_command,
         usage,
         details: localMatch?.details,

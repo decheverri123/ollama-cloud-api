@@ -29,7 +29,7 @@ Single-package ESM TypeScript server (Node >= 18, built with pnpm 10). No test f
 ## Runtime behavior
 
 - Env vars: `PORT` (default `11435`), `OLLAMA_HOST` (default `http://localhost:11434`).
-- Passthrough endpoints (`/api/chat`, `/api/show`, `/api/tags`, `/api/ps`, `/api/generate`, plus any unknown `/api/*`) require a running upstream Ollama; `/api/chat` also auto-selects a model via `recommendModel()` when `model` is omitted and `task` is given.
+- Passthrough endpoints (`/api/chat`, `/api/show`, `/api/tags`, `/api/ps`, `/api/generate`, plus any unknown `/api/*`) require a running upstream Ollama.
 - Cloud-specific endpoints (`/api/recommend`, `/api/leaderboard`, `/api/compare`, `/api/overview`, `/api/benchmarks`, `/api/tags-cloud`, `/api/show-cloud[/grouped]`, `/api/ps-cloud`, cache endpoints) work standalone from seed data + scraping.
 
 ## CI / release

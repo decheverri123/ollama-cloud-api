@@ -22,7 +22,7 @@ export async function handleCompletions(
         task: payload.task,
         maxUsage: payload.max_usage,
         capabilities: payload.capability
-          ? String(payload.capability).split(",").map((c) => c.trim().toLowerCase())
+          ? payload.capability.split(",").map((c: string) => c.trim().toLowerCase())
           : undefined,
         minContext: payload.min_context,
         onlyInstalled: payload.installed,

@@ -2,7 +2,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Ollama Cloud API",
-    version: "1.0.0",
+    version: "2.0.0",
     description:
       "The missing API for Ollama Cloud models: live numeric usage tiers (1=Low, 2=Medium, 3=High, 4=Extra High), scraped benchmarks, model recommendations, comparisons, and leaderboards.",
   },
@@ -193,91 +193,8 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/chat": {
-      post: {
-        summary: "Chat Completion (Cloud-Aware)",
-        description:
-          "Forwards a standard Ollama chat request to the upstream Ollama server. If 'model' is omitted and 'task' is provided, the best matching cloud model is selected automatically. Response includes the model's usage tier via the X-Model-Usage-Tier header.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  model: { type: "string", example: "glm-5.3-flash:cloud" },
-                  messages: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        role: { type: "string", example: "user" },
-                        content: { type: "string", example: "Hello!" },
-                      },
-                    },
-                  },
-                  stream: { type: "boolean", example: false },
-                  task: {
-                    type: "string",
-                    enum: ["coding", "agentic", "vision", "fast", "cheap", "general"],
-                    example: "coding",
-                  },
-                  max_usage: { type: "integer", example: 2 },
-                  capability: { type: "string", example: "tools" },
-                  min_context: { type: "integer", example: 262144 },
-                  installed: { type: "boolean", example: false },
-                },
-                required: ["messages"],
-              },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Ollama chat response with optional usage_tier enrichment",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
-    "/api/generate": {
-      post: {
-        summary: "Generate Completion (Cloud-Aware)",
-        description:
-          "Forwards a standard Ollama generate request to the upstream Ollama server. If 'model' is omitted and 'task' is provided, the best matching cloud model is selected automatically. Response includes the model's usage tier via the X-Model-Usage-Tier header.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  model: { type: "string", example: "glm-5.3-flash:cloud" },
-                  prompt: { type: "string", example: "Write a quicksort in Python." },
-                  stream: { type: "boolean", example: false },
-                  task: {
-                    type: "string",
-                    enum: ["coding", "agentic", "vision", "fast", "cheap", "general"],
-                    example: "coding",
-                  },
-                  max_usage: { type: "integer", example: 2 },
-                  capability: { type: "string", example: "tools" },
-                  min_context: { type: "integer", example: 262144 },
-                  installed: { type: "boolean", example: false },
-                },
-                required: ["prompt"],
-              },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Ollama generate response with optional usage_tier enrichment",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
+
+
     "/api/leaderboard": {
       get: {
         summary: "Ranked Benchmarks Leaderboard",
