@@ -32,7 +32,15 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/decheverri123/ollama-cloud-api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/decheverri123/ollama-cloud-api/issues"
+  },
+  "homepage": "https://github.com/decheverri123/ollama-cloud-api#readme",
+  "author": "Daniel Echeverri",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.13.0",

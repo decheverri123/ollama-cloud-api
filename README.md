@@ -53,7 +53,7 @@ npx ollama-cloud-api
 Set environment variables as needed:
 
 | Variable | Description | Default |
-|---|---|---|
+| --- | --- | --- |
 | `PORT` | Server port | `11435` |
 | `OLLAMA_HOST` | Upstream Ollama URL | `http://localhost:11434` |
 | `ENABLE_COMPLETIONS` | Allow `/api/chat` & `/api/generate` (disabled to protect host credits) | `false` |
