@@ -1,23 +1,24 @@
 # AGENTS.md
 
-Single-package ESM TypeScript server (Node >= 18, built with pnpm 10). No test framework, no linter.
+Single-package ESM TypeScript server (Node >= 18, built with pnpm 10). Built-in node:test runner via tsx.
 
 ## Commands
 
 - Dev with hot reload: `pnpm dev` (tsx watch src/index.ts)
 - Build + typecheck (strict): `pnpm build` (`tsc` -> `dist/`)
+- Run tests: `pnpm test` (tsx --test 'test/**/*.test.ts')
 - Run built server: `pnpm start`
-- No test/lint scripts exist. Verification = `pnpm build` passes, then optionally boot smoke: `node dist/index.js & sleep 2 && kill $!`
+- Verification = `pnpm test && pnpm build` passes, then optionally boot smoke: `node dist/index.js & sleep 2 && kill $!`
 
 ## Critical: `dist/` is committed
 
-`.gitignore` lists `dist/`, but `dist/index.js` is force-tracked on purpose: the npm `bin` and the package `files: ["dist"]` run straight from it. After any change to `src/index.ts`, run `pnpm build` and commit the regenerated `dist/index.js` too, or npm/Docker ships stale code. Keep `src` and `dist` in sync in every commit.
+`dist/` is tracked in git (both `.js` implementations and `.d.ts` declaration files): the npm `bin` and the package `files: ["dist"]` run straight from it. After any change to `src/`, run `pnpm build` and commit the regenerated `dist/` files too, or npm/Docker ships stale code. Keep `src` and `dist` in sync in every commit.
 
 ## Architecture
 
 - Modular router architecture (`src/router.ts`) dispatching to route handlers in `src/routes/`. `src/benchmarks-data.ts` holds pre-cached benchmark tables (`KNOWN_MODEL_BENCHMARKS`).
 - NodeNext ESM: relative imports must keep the `.js` extension (`import ... from "./benchmarks-data.js"`). Do not "fix" this to `.ts`.
-- Exported functions/maps are effectively unit-test targets but nothing tests them.
+- Unit and integration tests live in `test/` running with `node:test`.
 - OpenAPI spec at `/openapi.json` derives its server URL dynamically from request headers (`x-forwarded-host`), and `/docs` renders Scalar.
 
 ## Data & conventions

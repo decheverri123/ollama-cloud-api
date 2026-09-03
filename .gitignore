@@ -1,5 +1,4 @@
 node_modules/
-dist/
 *.log
 .DS_Store
 .env
@@ -8,3 +7,5 @@ benchmarks.html
 Tags · qwen3.5.html
 .kilo
 *.html
+*.txt
+

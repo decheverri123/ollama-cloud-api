@@ -30,12 +30,17 @@ export const handleLeaderboard = withError(async (
   const leaderboards = computeLeaderboard(benchmarks, usageMap);
   const requestedCat = parsedUrl.searchParams.get("category");
 
-  if (requestedCat && leaderboards[requestedCat]) {
-    sendJson(res, 200, {
-      category: requestedCat,
-      leaderboard: leaderboards[requestedCat],
-    });
-    return;
+  if (requestedCat) {
+    const matchedKey = Object.keys(leaderboards).find(
+      (k) => k.toLowerCase() === requestedCat.toLowerCase()
+    );
+    if (matchedKey && leaderboards[matchedKey]) {
+      sendJson(res, 200, {
+        category: matchedKey,
+        leaderboard: leaderboards[matchedKey],
+      });
+      return;
+    }
   }
 
   sendJson(res, 200, {

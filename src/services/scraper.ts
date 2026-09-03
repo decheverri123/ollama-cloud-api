@@ -76,20 +76,18 @@ export async function fetchModelUsageDetails(
         }
       }
 
-      if (pricing) {
-        const usage = calculateTierFromPricing(pricing.input, pricing.output);
-        usageCache.set(modelName, { usage, pricing, timestamp: Date.now() });
-        return { usage, pricing };
-      }
-
       const usageMatch = html.match(
         /•\s*(Low|Medium|High|Extra High|Very High)\s+Usage\s*•/i
       );
+      const usageFromBadge = usageMatch && usageMatch[1] ? parseUsageLevel(usageMatch[1]) : undefined;
 
-      if (usageMatch && usageMatch[1]) {
-        const usage = parseUsageLevel(usageMatch[1]);
-        usageCache.set(modelName, { usage, timestamp: Date.now() });
-        return { usage };
+      if (pricing || usageFromBadge !== undefined) {
+        const usage =
+          usageFromBadge ??
+          (pricing ? calculateTierFromPricing(pricing.input, pricing.output) : 1);
+        const modelPricing = pricing ?? undefined;
+        usageCache.set(modelName, { usage, pricing: modelPricing, timestamp: Date.now() });
+        return { usage, pricing: modelPricing };
       }
     } catch {
       // URL unavailable; try next in rotation

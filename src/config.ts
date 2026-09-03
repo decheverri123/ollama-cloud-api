@@ -64,6 +64,18 @@ export function seedCaches(): void {
     benchmarkCache.set(model, { data, timestamp: Date.now() });
     benchmarkCache.set(`${model}:cloud`, { data, timestamp: Date.now() });
   }
+
+  if (!liveCatalogCache) {
+    const defaultModels: LiveCloudModelInfo[] = Object.keys(KNOWN_MODEL_TIERS)
+      .filter((k) => !k.includes(":"))
+      .map((slug) => ({
+        name: slug,
+        cloud_tag: `${slug}:cloud`,
+        description: `Ollama Cloud model for ${slug}`,
+        pull_command: `ollama pull ${slug}:cloud`,
+      }));
+    liveCatalogCache = { models: defaultModels, timestamp: Date.now() };
+  }
 }
 
 export function resetCaches(): number {
