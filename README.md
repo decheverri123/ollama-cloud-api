@@ -125,6 +125,12 @@ curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?benchmarks=true"
 # Only models with available benchmark data
 curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?has_benchmarks=true"
 
+# Filter by AI Provider (e.g. Moonshot, Zhipu, DeepSeek, Mistral, Nvidia, Google)
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?provider=moonshot"
+
+# Filter by Speed / Workload Profile (fast, thinking, pro, general)
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?profile=fast"
+
 # Grouped by usage tier
 curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?grouped=true
 

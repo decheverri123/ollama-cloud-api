@@ -6,7 +6,7 @@ import {
   setLiveCatalogCache,
 } from "../config.js";
 import { KNOWN_MODEL_BENCHMARKS } from "../benchmarks-data.js";
-import type { LiveCloudModelInfo, ParsedBenchmarkTable } from "../types.js";
+import type { LiveCloudModelInfo, ParsedBenchmarkTable, ModelPricing } from "../types.js";
 import {
   decodeHtmlEntities,
   parsePricingFromHtml,
@@ -25,10 +25,12 @@ const DEFAULT_HEADERS = {
   Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 };
 
-export async function fetchModelUsage(modelName: string): Promise<number> {
+export async function fetchModelUsageDetails(
+  modelName: string
+): Promise<{ usage: number; pricing?: ModelPricing }> {
   const cached = usageCache.get(modelName);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.usage;
+    return { usage: cached.usage, pricing: cached.pricing };
   }
 
   const known = getKnownModelTier(modelName);
@@ -38,7 +40,7 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
       pricing: known.pricing,
       timestamp: Date.now(),
     });
-    return known.usage;
+    return { usage: known.usage, pricing: known.pricing };
   }
 
   const cleanName = modelName.replace(/:cloud$/, "");
@@ -77,7 +79,7 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
       if (pricing) {
         const usage = calculateTierFromPricing(pricing.input, pricing.output);
         usageCache.set(modelName, { usage, pricing, timestamp: Date.now() });
-        return usage;
+        return { usage, pricing };
       }
 
       const usageMatch = html.match(
@@ -87,7 +89,7 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
       if (usageMatch && usageMatch[1]) {
         const usage = parseUsageLevel(usageMatch[1]);
         usageCache.set(modelName, { usage, timestamp: Date.now() });
-        return usage;
+        return { usage };
       }
     } catch {
       // URL unavailable; try next in rotation
@@ -95,7 +97,12 @@ export async function fetchModelUsage(modelName: string): Promise<number> {
   }
 
   usageCache.set(modelName, { usage: 1, timestamp: Date.now() });
-  return 1;
+  return { usage: 1 };
+}
+
+export async function fetchModelUsage(modelName: string): Promise<number> {
+  const details = await fetchModelUsageDetails(modelName);
+  return details.usage;
 }
 
 export function getCloudTagForModel(modelName: string): string | undefined {

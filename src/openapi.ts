@@ -85,6 +85,18 @@ export const openApiSpec = {
             },
           },
           {
+            name: "provider",
+            in: "query",
+            description: "Filter models by provider or family (e.g. moonshot, zhipu, deepseek, mistral, nvidia, qwen, google).",
+            schema: { type: "string", example: "moonshot" },
+          },
+          {
+            name: "profile",
+            in: "query",
+            description: "Filter models by speed/workload profile (fast, thinking, pro, general).",
+            schema: { type: "string", enum: ["fast", "thinking", "pro", "general"], example: "fast" },
+          },
+          {
             name: "grouped",
             in: "query",
             description: "If true, returns results grouped by usage tier.",

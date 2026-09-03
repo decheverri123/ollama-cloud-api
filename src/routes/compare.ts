@@ -25,6 +25,12 @@ export const handleCompare = withError(async (
         name,
         installed: enriched.installed,
         usage: enriched.usage,
+        usage_label: enriched.usage_label,
+        pricing: enriched.pricing,
+        provider: enriched.provider,
+        family: enriched.family,
+        profile: enriched.profile,
+        context_length: enriched.context_length,
         details: enriched.details,
         capabilities: enriched.capabilities || [],
         model_info: enriched.model_info || {},
@@ -81,14 +87,17 @@ export const handleCompare = withError(async (
   sendJson(res, 200, {
     compared_models: comparedModels.map((model) => ({
       name: model.name,
+      provider: model.provider,
+      family: model.family,
+      profile: model.profile,
       installed: model.installed,
       usage: model.usage,
+      usage_label: model.usage_label,
+      pricing: model.pricing,
       parameter_size: model.details?.parameter_size,
       quantization_level: model.details?.quantization_level,
       capabilities: model.capabilities,
-      context_length:
-        (model.model_info?.context_length as number | undefined) ||
-        (model.model_info?.[`${model.details?.family}.context_length`] as number | undefined),
+      context_length: model.context_length,
     })),
     benchmark_comparison: benchmarkComparison,
   });

@@ -1,12 +1,16 @@
 import type http from "http";
 import type { URL } from "url";
 import { fetchOllamaTags, getEnrichedModelData } from "../services/ollama.js";
-import { fetchLiveCloudCatalog, fetchModelUsage } from "../services/scraper.js";
+import { fetchLiveCloudCatalog, fetchModelUsageDetails } from "../services/scraper.js";
 import {
   isCloudModel,
   findLocalInstalledModel,
   applyFiltersAndSort,
   groupModelsByTier,
+  getUsageLabel,
+  inferModelProvider,
+  inferModelProfile,
+  getKnownContextLength,
 } from "../utils/model.js";
 import { sendJson, withError } from "../utils/http.js";
 import { getCatalogOverview } from "./overview.js";
@@ -71,6 +75,8 @@ export const handleShowCloudAll = withError(async (
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        const { usage, pricing } = await fetchModelUsageDetails(name);
+        const { provider, family } = inferModelProvider(name);
         return {
           name: catModel.cloud_tag,
           cloud_name: catModel.name,
@@ -78,7 +84,13 @@ export const handleShowCloudAll = withError(async (
           installed: isInstalled,
           installed_tag: localMatch?.name || localMatch?.model || null,
           pull_command: catModel.pull_command,
-          usage: await fetchModelUsage(name),
+          usage,
+          usage_label: getUsageLabel(usage),
+          pricing,
+          provider,
+          family,
+          profile: inferModelProfile(name),
+          context_length: getKnownContextLength(name),
           error: message,
         };
       }

@@ -97,9 +97,16 @@ export interface FilterableModel {
   model?: string;
   installed?: boolean;
   usage?: number;
+  usage_label?: string;
+  pricing?: ModelPricing;
+  provider?: string;
+  family?: string;
+  profile?: string;
+  context_length?: number;
   size?: number;
   capabilities?: string[];
   pull_command?: string;
+  benchmarks?: ParsedBenchmarkTable;
   [key: string]: unknown;
 }
 
@@ -108,6 +115,12 @@ export interface EnrichedModelData {
   model?: string;
   installed?: boolean;
   usage?: number;
+  usage_label?: string;
+  pricing?: ModelPricing;
+  provider?: string;
+  family?: string;
+  profile?: string;
+  context_length?: number;
   details?: {
     parameter_size?: string;
     quantization_level?: string;

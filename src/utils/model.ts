@@ -8,6 +8,129 @@ export function calculateTierFromPricing(inputCost: number, outputCost: number):
   return 1; // Low
 }
 
+export function getUsageLabel(usage: number): string {
+  switch (usage) {
+    case 1:
+      return "Low";
+    case 2:
+      return "Medium";
+    case 3:
+      return "High";
+    case 4:
+      return "Extra High";
+    default:
+      return "Low";
+  }
+}
+
+export function inferModelProvider(modelName: string): { provider: string; family: string } {
+  const norm = modelName.toLowerCase();
+  if (norm.startsWith("kimi")) {
+    return { provider: "Moonshot AI", family: "Kimi" };
+  }
+  if (norm.startsWith("glm")) {
+    return { provider: "Zhipu AI", family: "GLM" };
+  }
+  if (norm.startsWith("deepseek")) {
+    return { provider: "DeepSeek", family: "DeepSeek" };
+  }
+  if (norm.startsWith("minimax")) {
+    return { provider: "MiniMax", family: "MiniMax" };
+  }
+  if (norm.startsWith("mistral") || norm.startsWith("codestral")) {
+    return { provider: "Mistral AI", family: "Mistral" };
+  }
+  if (norm.startsWith("nemotron")) {
+    return { provider: "Nvidia", family: "Nemotron" };
+  }
+  if (norm.startsWith("qwen")) {
+    return { provider: "Alibaba", family: "Qwen" };
+  }
+  if (norm.startsWith("gemma")) {
+    return { provider: "Google", family: "Gemma" };
+  }
+  if (norm.startsWith("gpt-oss")) {
+    return { provider: "OpenAI", family: "GPT" };
+  }
+  if (norm.startsWith("llama")) {
+    return { provider: "Meta", family: "Llama" };
+  }
+  if (norm.startsWith("phi")) {
+    return { provider: "Microsoft", family: "Phi" };
+  }
+  if (norm.startsWith("command")) {
+    return { provider: "Cohere", family: "Command" };
+  }
+  return { provider: "Community", family: norm.split(/[-:_]/)[0] };
+}
+
+export function inferModelProfile(modelName: string): "fast" | "thinking" | "pro" | "general" {
+  const norm = modelName.toLowerCase();
+  if (
+    norm.includes("flash") ||
+    norm.includes("nano") ||
+    norm.includes("mini") ||
+    norm.includes("speed") ||
+    norm.includes("lite") ||
+    norm.includes("small")
+  ) {
+    return "fast";
+  }
+  if (
+    norm.includes("think") ||
+    norm.includes("reason") ||
+    norm.includes("-r1") ||
+    norm.includes("code") ||
+    norm.includes("coder")
+  ) {
+    return "thinking";
+  }
+  if (
+    norm.includes("pro") ||
+    norm.includes("ultra") ||
+    norm.includes("super") ||
+    norm.includes("large") ||
+    norm.includes("675b") ||
+    norm.includes("max")
+  ) {
+    return "pro";
+  }
+  return "general";
+}
+
+export function getKnownContextLength(modelName: string): number | undefined {
+  const norm = modelName.toLowerCase();
+  if (norm.startsWith("kimi") || norm.startsWith("minimax")) {
+    return 1000000;
+  }
+  if (
+    norm.startsWith("nemotron-3-nano") ||
+    norm.startsWith("nemotron-3-super") ||
+    norm.startsWith("nemotron-3-ultra")
+  ) {
+    return 1048576;
+  }
+  if (norm.startsWith("glm-5")) {
+    return 131072;
+  }
+  if (norm.startsWith("deepseek")) {
+    return 131072;
+  }
+  if (norm.startsWith("mistral-large")) {
+    return 131072;
+  }
+  if (norm.startsWith("qwen")) {
+    return 131072;
+  }
+  if (norm.startsWith("gemma4")) {
+    return 131072;
+  }
+  if (norm.startsWith("gpt-oss")) {
+    return 131072;
+  }
+  return undefined;
+}
+
 export function isCloudModel(model: OllamaModelInfo): boolean {
   return Boolean(
     model.remote_host ||
@@ -197,6 +320,22 @@ export function applyFiltersAndSort(
       const b = m.benchmarks as { rows?: unknown[] } | undefined;
       return !b || !Array.isArray(b.rows) || b.rows.length === 0;
     });
+  }
+
+  const providerFilter = searchParams.get("provider");
+  if (providerFilter) {
+    const pLow = providerFilter.toLowerCase().trim();
+    result = result.filter((m) => {
+      const prov = (m.provider || "").toLowerCase();
+      const fam = (m.family || "").toLowerCase();
+      return prov.includes(pLow) || fam.includes(pLow);
+    });
+  }
+
+  const profileFilter = searchParams.get("profile");
+  if (profileFilter) {
+    const profLow = profileFilter.toLowerCase().trim();
+    result = result.filter((m) => (m.profile || "").toLowerCase() === profLow);
   }
 
   const sort = searchParams.get("sort");

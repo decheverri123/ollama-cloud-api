@@ -1,6 +1,12 @@
 import { OLLAMA_HOST } from "../config.js";
-import { fetchModelUsage, fetchModelBenchmarks } from "./scraper.js";
-import type { OllamaModelInfo, ParsedBenchmarkTable, EnrichedModelData } from "../types.js";
+import { fetchModelUsageDetails, fetchModelBenchmarks } from "./scraper.js";
+import {
+  getUsageLabel,
+  inferModelProvider,
+  inferModelProfile,
+  getKnownContextLength,
+} from "../utils/model.js";
+import type { OllamaModelInfo, ParsedBenchmarkTable, EnrichedModelData, ModelPricing } from "../types.js";
 
 async function fetchOllamaList(path: string): Promise<OllamaModelInfo[]> {
   try {
@@ -35,20 +41,45 @@ export async function getEnrichedModelData(
     .then(async (r) => (r.ok ? ((await r.json()) as Record<string, unknown>) : null))
     .catch(() => null);
 
-  const usagePromise = fetchModelUsage(modelName);
+  const usagePromise = fetchModelUsageDetails(modelName);
   const benchmarkPromise = includeBenchmarks
     ? fetchModelBenchmarks(modelName)
     : Promise.resolve(null);
 
-  const [modelDetails, usage, benchmarks] = (await Promise.all([
+  const [modelDetails, usageData, benchmarks] = (await Promise.all([
     ollamaPromise,
     usagePromise,
     benchmarkPromise,
-  ])) as [Record<string, unknown> | null, number, ParsedBenchmarkTable | null];
+  ])) as [
+    Record<string, unknown> | null,
+    { usage: number; pricing?: ModelPricing },
+    ParsedBenchmarkTable | null,
+  ];
+
+  const usage = usageData?.usage || 1;
+  const { provider, family } = inferModelProvider(modelName);
+  const profile = inferModelProfile(modelName);
+  const detailsObj = modelDetails?.details as Record<string, unknown> | undefined;
+  const modelInfoObj = modelDetails?.model_info as Record<string, unknown> | undefined;
+
+  const detectedContext =
+    (modelInfoObj?.context_length as number | undefined) ||
+    (detailsObj?.context_length as number | undefined) ||
+    (detailsObj?.family
+      ? (modelInfoObj?.[`${detailsObj.family}.context_length`] as number | undefined)
+      : undefined);
+
+  const contextLength = detectedContext || getKnownContextLength(modelName);
 
   const result: EnrichedModelData = {
     ...(modelDetails || {}),
-    usage: usage || 1,
+    usage,
+    usage_label: getUsageLabel(usage),
+    pricing: usageData?.pricing,
+    provider,
+    family: detailsObj?.family ? String(detailsObj.family) : family,
+    profile,
+    context_length: contextLength,
     installed: modelDetails !== null,
   };
 

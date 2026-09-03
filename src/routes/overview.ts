@@ -1,7 +1,13 @@
 import type http from "http";
 import { fetchOllamaTags } from "../services/ollama.js";
 import { fetchLiveCloudCatalog, fetchModelUsage, fetchModelBenchmarks } from "../services/scraper.js";
-import { isCloudModel, findLocalInstalledModel } from "../utils/model.js";
+import {
+  isCloudModel,
+  findLocalInstalledModel,
+  inferModelProvider,
+  inferModelProfile,
+  getKnownContextLength,
+} from "../utils/model.js";
 import { usageCache, benchmarkCache, liveCatalogCache } from "../config.js";
 import { sendJson, withError } from "../utils/http.js";
 
@@ -21,6 +27,8 @@ export async function getCatalogOverview(): Promise<Record<string, unknown>> {
   };
 
   const capabilitiesCount: Record<string, number> = {};
+  const providersCount: Record<string, number> = {};
+  const profilesCount: Record<string, number> = {};
   let longContextCount = 0;
   const modelsWithBenchmarks: string[] = [];
   const uninstalledModels: string[] = [];
@@ -33,6 +41,12 @@ export async function getCatalogOverview(): Promise<Record<string, unknown>> {
         usage === 1 ? "1_low" : usage === 2 ? "2_medium" : usage === 3 ? "3_high" : "4_extra_high";
       usageDist[key] = (usageDist[key] || 0) + 1;
 
+      const { provider } = inferModelProvider(name);
+      providersCount[provider] = (providersCount[provider] || 0) + 1;
+
+      const profile = inferModelProfile(name);
+      profilesCount[profile] = (profilesCount[profile] || 0) + 1;
+
       const localMatch = findLocalInstalledModel(name, localCloudModels);
       if (!localMatch) {
         uninstalledModels.push(catModel.cloud_tag);
@@ -42,14 +56,14 @@ export async function getCatalogOverview(): Promise<Record<string, unknown>> {
             capabilitiesCount[cap] = (capabilitiesCount[cap] || 0) + 1;
           }
         }
+      }
 
-        const ctx =
-          (localMatch.model_info?.context_length as number | undefined) ||
-          (localMatch.details?.context_length as number | undefined) ||
-          (localMatch.model_info?.[`${localMatch.details?.family}.context_length`] as number | undefined);
-        if (ctx && ctx >= 1000000) {
-          longContextCount += 1;
-        }
+      const detectedCtx =
+        (localMatch?.model_info?.context_length as number | undefined) ||
+        (localMatch?.details?.context_length as number | undefined) ||
+        getKnownContextLength(name);
+      if (detectedCtx && detectedCtx >= 1000000) {
+        longContextCount += 1;
       }
 
       const bench = await fetchModelBenchmarks(name);
@@ -67,6 +81,8 @@ export async function getCatalogOverview(): Promise<Record<string, unknown>> {
     total_local_installed_models: rawLocalModels.length,
     usage_tier_distribution: usageDist,
     capabilities_breakdown: capabilitiesCount,
+    providers_breakdown: providersCount,
+    profiles_breakdown: profilesCount,
     models_with_1m_context_count: longContextCount,
     models_with_benchmarks_count: modelsWithBenchmarks.length,
     models_with_benchmarks: modelsWithBenchmarks,
