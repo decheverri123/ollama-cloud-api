@@ -52,10 +52,11 @@ npx ollama-cloud-api
 
 Set environment variables as needed:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | `11435` |
-| `OLLAMA_HOST` | Upstream Ollama URL | `http://localhost:11434` |
+| Variable             | Description                                                           | Default                 |
+|----------------------|-----------------------------------------------------------------------|-------------------------|
+| `PORT`               | Server port                                                           | `11435`                 |
+| `OLLAMA_HOST`        | Upstream Ollama URL                                                   | `http://localhost:11434`|
+| `ENABLE_COMPLETIONS` | Allow `/api/chat` & `/api/generate` (disabled to protect host credits)| `false`                 |
 
 Example:
 ```bash
@@ -131,16 +132,19 @@ curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?grouped=true
 curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?summary=true"
 ```
 
-### 7. Transparent Ollama Pass-Through
-When self-hosting with an upstream Ollama instance, all standard Ollama endpoints are forwarded directly:
-- `/api/tags`, `/api/show`, `/api/version`
-- `/api/chat`, `/api/generate` (standard Ollama behavior)
+### 7. Transparent Ollama Pass-Through & Credit Protection
+
+When self-hosting with an upstream Ollama instance:
+- **Metadata Passthrough**: Read-only metadata endpoints (`/api/tags`, `/api/show`, `/api/version`, `/api/ps`) are forwarded directly to upstream Ollama at zero credit cost.
+- **Host Credit Protection**: All inference endpoints (`/api/chat`, `/api/generate`, `/api/embed`, `/api/embeddings`) are **disabled by default (403 Forbidden)** to ensure no external callers can consume your Ollama Cloud credits.
+- **Model Safety**: Mutating operations (`/api/pull`, `/api/delete`, etc.) and unknown routes are blocked.
+- To explicitly allow inference completions through this proxy, set `ENABLE_COMPLETIONS=true`.
 
 ```bash
 # Standard show (proxied to upstream Ollama)
 curl http://localhost:11435/api/tags
 
-# Standard chat (proxied to upstream Ollama)
+# Chat completion (only active when ENABLE_COMPLETIONS=true)
 curl -X POST http://localhost:11435/api/chat \
   -H "Content-Type: application/json" \
   -d '{

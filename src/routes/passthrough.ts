@@ -26,6 +26,27 @@ export const handlePassthrough = withError(async (
   res.writeHead(proxyRes.status, {
     "Content-Type": proxyRes.headers.get("Content-Type") || "application/json",
   });
-  const proxyData = await proxyRes.text();
-  res.end(proxyData);
+
+  if (proxyRes.body) {
+    const reader = proxyRes.body.getReader();
+    const pump = (): void => {
+      reader
+        .read()
+        .then(({ done, value }) => {
+          if (done) {
+            res.end();
+            return;
+          }
+          res.write(value);
+          pump();
+        })
+        .catch(() => {
+          res.end();
+        });
+    };
+    pump();
+    return;
+  }
+
+  res.end();
 });

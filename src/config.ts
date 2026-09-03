@@ -9,6 +9,7 @@ import type {
 export const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
 export const PORT = parseInt(process.env.PORT || "11435", 10);
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const ENABLE_COMPLETIONS = process.env.ENABLE_COMPLETIONS === "true";
 
 export const KNOWN_MODEL_TIERS: Record<
   string,

@@ -28,8 +28,9 @@ Single-package ESM TypeScript server (Node >= 18, built with pnpm 10). No test f
 
 ## Runtime behavior
 
-- Env vars: `PORT` (default `11435`), `OLLAMA_HOST` (default `http://localhost:11434`).
-- Passthrough endpoints (`/api/chat`, `/api/show`, `/api/tags`, `/api/ps`, `/api/generate`, plus any unknown `/api/*`) require a running upstream Ollama.
+- Env vars: `PORT` (default `11435`), `OLLAMA_HOST` (default `http://localhost:11434`), `ENABLE_COMPLETIONS` (default `false`).
+- Metadata passthrough endpoints (`/api/show`, `/api/tags`, `/api/ps`, plus unknown read-only `/api/*`) require a running upstream Ollama.
+- Inference completion endpoints (`/api/chat`, `/api/generate`) return `403 Forbidden` by default to protect host Ollama Cloud credits; set `ENABLE_COMPLETIONS=true` to enable.
 - Cloud-specific endpoints (`/api/recommend`, `/api/leaderboard`, `/api/compare`, `/api/overview`, `/api/show-cloud`) work standalone from seed data + scraping.
 
 ## CI / release
