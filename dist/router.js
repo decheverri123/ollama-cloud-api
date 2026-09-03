@@ -10,26 +10,21 @@ import { handleOverview } from "./routes/overview.js";
 import { handlePassthrough } from "./routes/passthrough.js";
 export function createRouter() {
     return async (req, res) => {
-        // Set CORS headers
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, User-Agent, Accept");
         res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-        // Handle OPTIONS requests
         if (req.method === "OPTIONS") {
             res.writeHead(204);
             return res.end();
         }
-        // Parse URL
         const parsedUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
         const pathname = parsedUrl.pathname;
-        // Extract host and protocol information
         const host = req.headers["x-forwarded-host"] ||
             req.headers.host ||
             `localhost:${PORT}`;
         const proto = req.headers["x-forwarded-proto"] ||
             (host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https");
         const baseUrl = `${proto}://${host}`;
-        // Route handling
         if (pathname === "/openapi.json") {
             return sendJson(res, 200, getOpenApiSpecWithHost(baseUrl));
         }
@@ -68,7 +63,6 @@ export function createRouter() {
         if (pathname === "/api/recommend") {
             return handleRecommend(req, res, parsedUrl);
         }
-        // Handle show-cloud endpoints (both specific model and listing)
         if (pathname === "/api/show-cloud") {
             const includeBenchmarks = parsedUrl.searchParams.get("benchmarks") === "true" ||
                 parsedUrl.searchParams.get("has_benchmarks") === "true";
@@ -96,7 +90,7 @@ export function createRouter() {
                 }
             }
         }
-        // Protect host credits by disabling all inference endpoints (/api/chat, /api/generate, /api/embed, /api/embeddings) unless explicitly enabled
+        // Inference credit protection
         if (pathname === "/api/chat" ||
             pathname === "/api/generate" ||
             pathname === "/api/embed" ||
@@ -110,7 +104,7 @@ export function createRouter() {
             }
             return handlePassthrough(req, res);
         }
-        // Safe, read-only Ollama metadata endpoints (zero token cost)
+        // Safe read-only Ollama metadata endpoints (zero token cost)
         if (pathname === "/api/tags" ||
             pathname === "/api/show" ||
             pathname === "/api/ps" ||
@@ -128,7 +122,6 @@ export function createRouter() {
                 message: "This proxy only serves cloud model discovery and read-only metadata.",
             });
         }
-        // Return 404 for any other unrecognized routes
         return sendJson(res, 404, {
             error: "Not Found",
             message: `The endpoint '${pathname}' does not exist on this server.`,

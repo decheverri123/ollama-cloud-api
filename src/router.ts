@@ -13,7 +13,6 @@ import { handlePassthrough } from "./routes/passthrough.js";
 
 export function createRouter() {
   return async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    // Set CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader(
       "Access-Control-Allow-Headers",
@@ -21,20 +20,17 @@ export function createRouter() {
     );
     res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
 
-    // Handle OPTIONS requests
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       return res.end();
     }
 
-    // Parse URL
     const parsedUrl = new URL(
       req.url || "/",
       `http://${req.headers.host || "localhost"}`
     );
     const pathname = parsedUrl.pathname;
 
-    // Extract host and protocol information
     const host =
       (req.headers["x-forwarded-host"] as string) ||
       req.headers.host ||
@@ -44,7 +40,6 @@ export function createRouter() {
       (host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https");
     const baseUrl = `${proto}://${host}`;
 
-    // Route handling
     if (pathname === "/openapi.json") {
       return sendJson(res, 200, getOpenApiSpecWithHost(baseUrl));
     }
@@ -90,7 +85,6 @@ export function createRouter() {
       return handleRecommend(req, res, parsedUrl);
     }
 
-    // Handle show-cloud endpoints (both specific model and listing)
     if (pathname === "/api/show-cloud") {
       const includeBenchmarks =
         parsedUrl.searchParams.get("benchmarks") === "true" ||
@@ -121,7 +115,7 @@ export function createRouter() {
       }
     }
 
-    // Protect host credits by disabling all inference endpoints (/api/chat, /api/generate, /api/embed, /api/embeddings) unless explicitly enabled
+    // Inference credit protection
     if (
       pathname === "/api/chat" ||
       pathname === "/api/generate" ||
@@ -139,7 +133,7 @@ export function createRouter() {
       return handlePassthrough(req, res);
     }
 
-    // Safe, read-only Ollama metadata endpoints (zero token cost)
+    // Safe read-only Ollama metadata endpoints (zero token cost)
     if (
       pathname === "/api/tags" ||
       pathname === "/api/show" ||
@@ -163,7 +157,6 @@ export function createRouter() {
       });
     }
 
-    // Return 404 for any other unrecognized routes
     return sendJson(res, 404, {
       error: "Not Found",
       message: `The endpoint '${pathname}' does not exist on this server.`,
