@@ -24,6 +24,7 @@ export const handleCompare = withError(async (
       return {
         name,
         installed: enriched.installed,
+        ollama_url: enriched.ollama_url,
         usage: enriched.usage,
         usage_label: enriched.usage_label,
         pricing: enriched.pricing,
@@ -87,6 +88,7 @@ export const handleCompare = withError(async (
   sendJson(res, 200, {
     compared_models: comparedModels.map((model) => ({
       name: model.name,
+      ollama_url: model.ollama_url,
       provider: model.provider,
       family: model.family,
       profile: model.profile,

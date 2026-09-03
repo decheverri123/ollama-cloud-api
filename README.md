@@ -106,6 +106,7 @@ curl -s "http://localhost:11435/api/show-cloud?model=glm-5.3-flash:cloud"
   "family": "glm5_next",
   "profile": "fast",
   "context_length": 1048576,
+  "ollama_url": "https://ollama.com/library/glm-5.3-flash",
   "installed": true
 }
 ```
@@ -116,6 +117,7 @@ curl -s "http://localhost:11435/api/show-cloud?model=glm-5.3-flash:cloud"
 - **Usage Tier**: Numeric tier `2` and label `"Medium"`.
 - **AI Lab Attribution**: `"provider": "Zhipu AI"`.
 - **Speed Profile**: `"profile": "fast"` (distinguishing lightweight flash models from heavy pro models).
+- **Direct Web Page Link**: `"ollama_url": "https://ollama.com/library/glm-5.3-flash"` linking to the official Ollama page.
 - **Catalog Discovery**: Query, filter, and compare models even before pulling them locally.
 
 ---

@@ -11,6 +11,7 @@ import {
   inferModelProvider,
   inferModelProfile,
   getKnownContextLength,
+  getOllamaModelUrl,
 } from "../utils/model.js";
 import { sendJson, withError } from "../utils/http.js";
 import { getCatalogOverview } from "./overview.js";
@@ -66,6 +67,7 @@ export const handleShowCloudAll = withError(async (
         return {
           name: catModel.cloud_tag,
           cloud_name: catModel.name,
+          ollama_url: getOllamaModelUrl(catModel.name),
           description: catModel.description,
           installed_tag: localMatch?.name || localMatch?.model || null,
           pull_command: catModel.pull_command,
@@ -80,6 +82,7 @@ export const handleShowCloudAll = withError(async (
         return {
           name: catModel.cloud_tag,
           cloud_name: catModel.name,
+          ollama_url: getOllamaModelUrl(catModel.name),
           description: catModel.description,
           installed: isInstalled,
           installed_tag: localMatch?.name || localMatch?.model || null,

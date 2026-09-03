@@ -7,7 +7,12 @@ import type {
 } from "../types.js";
 import { fetchLiveCloudCatalog, fetchModelUsage, fetchModelBenchmarks } from "./scraper.js";
 import { fetchOllamaTags } from "./ollama.js";
-import { isCloudModel, findLocalInstalledModel, extractModelScore } from "../utils/model.js";
+import {
+  isCloudModel,
+  findLocalInstalledModel,
+  extractModelScore,
+  getOllamaModelUrl,
+} from "../utils/model.js";
 
 interface EnrichedModel {
   name: string;
@@ -210,6 +215,7 @@ export async function recommendModel(options: RecommendOptions): Promise<Recomme
       model: m.name,
       installed: m.installed,
       pull_command: m.pull_command,
+      ollama_url: getOllamaModelUrl(m.name),
       usage: m.usage,
       capabilities: caps,
       score: Math.round(score * 10) / 10,
@@ -225,6 +231,7 @@ export async function recommendModel(options: RecommendOptions): Promise<Recomme
     task,
     max_usage: maxUsage,
     recommendation: top.model,
+    ollama_url: getOllamaModelUrl(top.model),
     installed: top.installed,
     pull_command: top.installed ? undefined : top.pull_command,
     usage_tier: top.usage,

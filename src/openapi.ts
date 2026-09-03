@@ -17,7 +17,7 @@ export const openApiSpec = {
       get: {
         summary: "Get Cloud Models (Full Catalog + Local Installed Status)",
         description:
-          "Lists all Ollama Cloud models live from Ollama's catalog, enriched with local installed status (installed: true/false), parameters, template, capabilities, model_info, and numeric usage tiers (1=Low, 2=Medium, 3=High, 4=Extra High).",
+          "Lists all Ollama Cloud models live from Ollama's catalog, enriched with local installed status, direct ollama.com library link (ollama_url), parameters, template, capabilities, model_info, exact token pricing, and numeric usage tiers.",
         parameters: [
           {
             name: "model",

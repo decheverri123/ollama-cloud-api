@@ -21,6 +21,7 @@ export interface LiveCloudModelInfo {
   cloud_tag: string;
   description: string;
   pull_command: string;
+  ollama_url?: string;
 }
 
 export interface RecommendOptions {
@@ -35,6 +36,7 @@ export interface RecommendationCandidate {
   model: string;
   installed: boolean;
   pull_command?: string;
+  ollama_url?: string;
   usage: number;
   capabilities: string[];
   score: number;
@@ -45,6 +47,7 @@ export interface RecommendationResult {
   task: string;
   max_usage: number;
   recommendation: string | null;
+  ollama_url?: string;
   installed: boolean;
   pull_command?: string;
   usage_tier?: number;
@@ -95,6 +98,7 @@ export interface ShowCloudRequest {
 export interface FilterableModel {
   name?: string;
   model?: string;
+  ollama_url?: string;
   installed?: boolean;
   usage?: number;
   usage_label?: string;
@@ -113,6 +117,7 @@ export interface FilterableModel {
 export interface EnrichedModelData {
   name?: string;
   model?: string;
+  ollama_url?: string;
   installed?: boolean;
   usage?: number;
   usage_label?: string;

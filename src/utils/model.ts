@@ -131,6 +131,11 @@ export function getKnownContextLength(modelName: string): number | undefined {
   return undefined;
 }
 
+export function getOllamaModelUrl(modelName: string): string {
+  const clean = modelName.trim().replace(/:cloud$/, "");
+  return `https://ollama.com/library/${clean}`;
+}
+
 export function isCloudModel(model: OllamaModelInfo): boolean {
   return Boolean(
     model.remote_host ||
