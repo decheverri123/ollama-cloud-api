@@ -55,12 +55,7 @@ curl -s http://localhost:11434/api/show -d '{"model": "glm-5.3-flash:cloud"}'
     "glm5_next.context_length": 1048576,
     "glm5_next.embedding_length": 4096
   },
-  "capabilities": [
-    "completion",
-    "thinking",
-    "tools",
-    "vision"
-  ],
+  "capabilities": ["completion", "thinking", "tools", "vision"],
   "modified_at": "2026-08-26T07:00:00-07:00"
 }
 ```
@@ -74,12 +69,7 @@ curl -s "http://localhost:11435/api/show-cloud?model=glm-5.3-flash:cloud"
 ```json
 {
   "model": "glm-5.3-flash:cloud",
-  "capabilities": [
-    "completion",
-    "thinking",
-    "tools",
-    "vision"
-  ],
+  "capabilities": ["completion", "thinking", "tools", "vision"],
   "details": {
     "parent_model": "glm-5.3-flash",
     "format": "",
@@ -145,11 +135,11 @@ curl -s "http://localhost:11435/api/show-cloud?model=glm-5.3-flash:cloud"
 
 Set environment variables as needed:
 
-| Variable | Description | Default |
-| --- | --- | --- |
-| `PORT` | Server port | `11435` |
-| `OLLAMA_HOST` | Upstream Ollama URL | `http://localhost:11434` |
-| `ENABLE_COMPLETIONS` | Allow `/api/chat` & `/api/generate` (disabled to protect host credits) | `false` |
+| Variable             | Description                                                            | Default                  |
+| -------------------- | ---------------------------------------------------------------------- | ------------------------ |
+| `PORT`               | Server port                                                            | `11435`                  |
+| `OLLAMA_HOST`        | Upstream Ollama URL                                                    | `http://localhost:11434` |
+| `ENABLE_COMPLETIONS` | Allow `/api/chat` & `/api/generate` (disabled to protect host credits) | `false`                  |
 
 Example:
 
