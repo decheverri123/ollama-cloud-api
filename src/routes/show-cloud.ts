@@ -9,6 +9,7 @@ import {
   groupModelsByTier,
 } from "../utils/model.js";
 import { sendJson, withError } from "../utils/http.js";
+import { getCatalogOverview } from "./overview.js";
 import type { ShowCloudRequest, OllamaModelInfo } from "../types.js";
 
 export const handleShowCloud = withError(async (
@@ -27,7 +28,7 @@ export const handleShowCloud = withError(async (
     payload.verbose ?? true,
     payload.benchmarks ?? false
   );
-  sendJson(res, 200, enriched);
+  sendJson(res, 200, { model: modelName, ...enriched });
 });
 
 export const handleShowCloudAll = withError(async (
@@ -86,8 +87,28 @@ export const handleShowCloudAll = withError(async (
 
   const filtered = applyFiltersAndSort(enrichedModels, parsedUrl.searchParams);
 
+  const summaryParam = parsedUrl.searchParams.get("summary");
+  if (summaryParam === "only") {
+    const summary = await getCatalogOverview();
+    sendJson(res, 200, summary);
+    return;
+  }
+
   if (grouped) {
-    sendJson(res, 200, groupModelsByTier(filtered));
+    const groupedData: Record<string, unknown> = groupModelsByTier(filtered);
+    if (summaryParam === "true") {
+      groupedData.summary = await getCatalogOverview();
+    }
+    sendJson(res, 200, groupedData);
+    return;
+  }
+
+  if (summaryParam === "true") {
+    sendJson(res, 200, {
+      summary: await getCatalogOverview(),
+      models_count: filtered.length,
+      models: filtered,
+    });
     return;
   }
 

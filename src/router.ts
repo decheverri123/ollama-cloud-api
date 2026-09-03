@@ -9,8 +9,6 @@ import { handleRecommend } from "./routes/recommend.js";
 import { handleLeaderboard } from "./routes/leaderboard.js";
 import { handleCompare } from "./routes/compare.js";
 import { handleOverview } from "./routes/overview.js";
-import { handleBenchmarks } from "./routes/benchmarks.js";
-import { handleCompletions } from "./routes/completions.js";
 import { handlePassthrough } from "./routes/passthrough.js";
 
 export function createRouter() {
@@ -51,7 +49,7 @@ export function createRouter() {
       return sendJson(res, 200, getOpenApiSpecWithHost(baseUrl));
     }
 
-    if (pathname === "/docs" || pathname === "/reference") {
+    if (pathname === "/docs") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(renderDocsHtml());
     }
@@ -69,39 +67,34 @@ export function createRouter() {
           "/api/leaderboard",
           "/api/compare?models=<m1>,<m2>",
           "/api/overview",
-          "/api/benchmarks",
-          "/api/benchmarks?model=<name>",
           "/docs",
           "/openapi.json",
-          "/api/tags",
           "/health",
         ],
       });
     }
 
-    if (pathname === "/api/overview" || pathname === "/overview") {
+    if (pathname === "/api/overview") {
       return handleOverview(req, res);
     }
 
-    if (pathname === "/api/leaderboard" || pathname === "/leaderboard") {
+    if (pathname === "/api/leaderboard") {
       return handleLeaderboard(req, res, parsedUrl);
     }
 
-    if (pathname === "/api/compare" || pathname === "/compare") {
+    if (pathname === "/api/compare") {
       return handleCompare(req, res, parsedUrl);
     }
 
-    if (pathname === "/api/recommend" || pathname === "/recommend") {
+    if (pathname === "/api/recommend") {
       return handleRecommend(req, res, parsedUrl);
     }
 
-    if (pathname === "/api/benchmarks" || pathname === "/benchmarks") {
-      return handleBenchmarks(req, res, parsedUrl);
-    }
-
     // Handle show-cloud endpoints (both specific model and listing)
-    if (pathname === "/api/show-cloud" || pathname === "/show-cloud") {
-      const includeBenchmarks = parsedUrl.searchParams.get("benchmarks") === "true";
+    if (pathname === "/api/show-cloud") {
+      const includeBenchmarks =
+        parsedUrl.searchParams.get("benchmarks") === "true" ||
+        parsedUrl.searchParams.get("has_benchmarks") === "true";
 
       if (req.method === "GET") {
         const model = parsedUrl.searchParams.get("model");
@@ -128,12 +121,7 @@ export function createRouter() {
       }
     }
 
-    // Handle chat and generate endpoints with special cloud-aware logic
-    if ((pathname === "/api/chat" || pathname === "/api/generate") && req.method === "POST") {
-      return handleCompletions(req, res, pathname);
-    }
-
-    // Default to passthrough for unmatched routes
+    // Default to passthrough for unmatched routes (standard Ollama endpoints like /api/chat, /api/generate, /api/tags, etc.)
     return handlePassthrough(req, res);
   };
 }

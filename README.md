@@ -107,19 +107,8 @@ Side-by-side diff of context length, active parameters, usage tiers, and benchma
 curl "https://ollama-cloud-api-4bbr.onrender.com/api/compare?models=glm-5.3-flash:cloud,glm-5.3:cloud"
 ```
 
-### 6. `GET /api/benchmarks` (Model Benchmarks)
-Scrapes and extracts benchmark comparison tables from the model's Ollama library page.
-
-```bash
-# Specific model
-curl "https://ollama-cloud-api-4bbr.onrender.com/api/benchmarks?model=glm-5.3-flash:cloud"
-
-# All models with benchmarks
-curl https://ollama-cloud-api-4bbr.onrender.com/api/benchmarks
-```
-
-### 7. `GET /api/show-cloud` (Cloud Model Details)
-Returns full model details (parameters, template, capabilities, model_info) and numeric `usage` (1–4) for cloud models. Supports filtering, sorting, and grouping.
+### 6. `GET /api/show-cloud` (Cloud Model Details & Benchmarks)
+Returns full model details (parameters, template, capabilities, model_info), benchmarks, and numeric `usage` (1–4) for cloud models. Supports filtering, sorting, summary metrics, and grouping.
 
 ```bash
 # All cloud models
@@ -129,11 +118,20 @@ curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud
 # Filter: Vision + Tools with Low/Medium usage sorted by lowest usage first
 curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?max_usage=2&capability=vision,tools&sort=usage"
 
+# Models with benchmark comparisons included
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?benchmarks=true"
+
+# Only models with available benchmark data
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?has_benchmarks=true"
+
 # Grouped by usage tier
 curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?grouped=true
+
+# Combined with catalog summary statistics
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?summary=true"
 ```
 
-### 8. Transparent Ollama Pass-Through
+### 7. Transparent Ollama Pass-Through
 When self-hosting with an upstream Ollama instance, all standard Ollama endpoints are forwarded directly:
 - `/api/tags`, `/api/show`, `/api/version`
 - `/api/chat`, `/api/generate` (standard Ollama behavior)

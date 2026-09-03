@@ -5,10 +5,7 @@ import { isCloudModel, findLocalInstalledModel } from "../utils/model.js";
 import { usageCache, benchmarkCache, liveCatalogCache } from "../config.js";
 import { sendJson, withError } from "../utils/http.js";
 
-export const handleOverview = withError(async (
-  _req: http.IncomingMessage,
-  res: http.ServerResponse
-) => {
+export async function getCatalogOverview(): Promise<Record<string, unknown>> {
   const [rawLocalModels, liveCatalog] = await Promise.all([
     fetchOllamaTags(),
     fetchLiveCloudCatalog(),
@@ -62,7 +59,7 @@ export const handleOverview = withError(async (
     })
   );
 
-  sendJson(res, 200, {
+  return {
     live_cloud_catalog_count: liveCatalog.length,
     installed_cloud_models_count: liveCatalog.length - uninstalledModels.length,
     uninstalled_cloud_models_count: uninstalledModels.length,
@@ -78,5 +75,13 @@ export const handleOverview = withError(async (
       cached_benchmarks_entries: benchmarkCache.size,
       live_catalog_cached: liveCatalogCache !== null,
     },
-  });
+  };
+}
+
+export const handleOverview = withError(async (
+  _req: http.IncomingMessage,
+  res: http.ServerResponse
+) => {
+  const data = await getCatalogOverview();
+  sendJson(res, 200, data);
 });

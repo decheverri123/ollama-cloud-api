@@ -186,6 +186,19 @@ export function applyFiltersAndSort(
     });
   }
 
+  const hasBenchmarksFilter = searchParams.get("has_benchmarks");
+  if (hasBenchmarksFilter === "true") {
+    result = result.filter((m) => {
+      const b = m.benchmarks as { rows?: unknown[] } | undefined;
+      return Boolean(b && Array.isArray(b.rows) && b.rows.length > 0);
+    });
+  } else if (hasBenchmarksFilter === "false") {
+    result = result.filter((m) => {
+      const b = m.benchmarks as { rows?: unknown[] } | undefined;
+      return !b || !Array.isArray(b.rows) || b.rows.length === 0;
+    });
+  }
+
   const sort = searchParams.get("sort");
   if (sort === "usage" || sort === "usage_asc") {
     result.sort((a, b) => (a.usage || 0) - (b.usage || 0));

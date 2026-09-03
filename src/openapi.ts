@@ -38,6 +38,18 @@ export const openApiSpec = {
             schema: { type: "boolean", example: true },
           },
           {
+            name: "has_benchmarks",
+            in: "query",
+            description: "Filter models having scraped benchmark comparison data.",
+            schema: { type: "boolean", example: true },
+          },
+          {
+            name: "summary",
+            in: "query",
+            description: "Include catalog overview statistics (true), or return only summary statistics (only).",
+            schema: { type: "string", enum: ["true", "only"], example: "true" },
+          },
+          {
             name: "usage",
             in: "query",
             description: "Filter by comma-separated usage tiers (e.g. 1,2).",
@@ -193,8 +205,6 @@ export const openApiSpec = {
         },
       },
     },
-
-
     "/api/leaderboard": {
       get: {
         summary: "Ranked Benchmarks Leaderboard",
@@ -249,131 +259,6 @@ export const openApiSpec = {
         responses: {
           "200": {
             description: "Catalog statistics",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
-    "/api/benchmarks": {
-      get: {
-        summary: "Get Model Benchmarks",
-        description:
-          "Retrieves scraped benchmark comparison results from Ollama's library page (Coding, Agentic, Vision, Math).",
-        parameters: [
-          {
-            name: "model",
-            in: "query",
-            description:
-              "Model name (e.g. glm-5.3-flash:cloud). If omitted, returns all cloud models with benchmarks.",
-            schema: { type: "string", example: "glm-5.3-flash:cloud" },
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Benchmark comparison table and categories",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
-    "/api/show-cloud/grouped": {
-      get: {
-        summary: "Get Cloud Models Grouped by Tier",
-        description:
-          "Returns all cloud models categorized into 1_low, 2_medium, 3_high, and 4_extra_high.",
-        responses: {
-          "200": {
-            description: "Grouped models",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
-    "/api/tags-cloud": {
-      get: {
-        summary: "Lightweight Cloud Tags",
-        description:
-          "Fast tags-compatible endpoint returning only cloud models with usage numbers (1-4) and installed status.",
-        parameters: [
-          {
-            name: "installed",
-            in: "query",
-            description: "Filter by installed status (true or false).",
-            schema: { type: "boolean" },
-          },
-          {
-            name: "usage",
-            in: "query",
-            description: "Filter by usage tiers (e.g. 1,2).",
-            schema: { type: "string" },
-          },
-          {
-            name: "max_usage",
-            in: "query",
-            description: "Maximum usage tier.",
-            schema: { type: "integer" },
-          },
-          {
-            name: "sort",
-            in: "query",
-            description: "Sort order.",
-            schema: {
-              type: "string",
-              enum: ["usage", "usage_desc", "name", "size"],
-            },
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Cloud tags response",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
-    "/api/ps-cloud": {
-      get: {
-        summary: "Running Cloud Models",
-        description:
-          "Lists currently running/loaded Ollama cloud models along with their usage tier.",
-        responses: {
-          "200": {
-            description: "Running cloud models",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
-    "/api/cache/status": {
-      get: {
-        summary: "Cache Status",
-        description:
-          "View in-memory usage, benchmark, and catalog cache size, TTL, entries, ages, and time-to-expiry.",
-        responses: {
-          "200": {
-            description: "Cache status details",
-            content: { "application/json": {} },
-          },
-        },
-      },
-    },
-    "/api/cache/clear": {
-      post: {
-        summary: "Clear All Caches",
-        description: "Immediately flushes all cached model usage levels, benchmarks, and catalog lists.",
-        responses: {
-          "200": {
-            description: "Cache cleared",
-            content: { "application/json": {} },
-          },
-        },
-      },
-      get: {
-        summary: "Clear Cache (GET shortcut)",
-        description: "Convenience GET endpoint to flush cache.",
-        responses: {
-          "200": {
-            description: "Cache cleared",
             content: { "application/json": {} },
           },
         },
