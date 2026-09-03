@@ -29,6 +29,97 @@ npx ollama-cloud-api
 
 ---
 
+## Why This Exists: Official Ollama API vs. Ollama Cloud API
+
+When querying a cloud model like `glm-5.3-flash:cloud`, the official Ollama API returns basic architecture details, but omits token pricing, usage tiers, speed profile, and provider attribution.
+
+### Official Ollama API (`POST /api/show`)
+
+```bash
+curl -s http://localhost:11434/api/show -d '{"model": "glm-5.3-flash:cloud"}'
+```
+
+```json
+{
+  "details": {
+    "parent_model": "glm-5.3-flash",
+    "format": "",
+    "family": "glm5_next",
+    "families": null,
+    "parameter_size": "321323031390",
+    "quantization_level": "FP8"
+  },
+  "model_info": {
+    "general.architecture": "glm5_next",
+    "general.parameter_count": 321323031390,
+    "glm5_next.context_length": 1048576,
+    "glm5_next.embedding_length": 4096
+  },
+  "capabilities": [
+    "completion",
+    "thinking",
+    "tools",
+    "vision"
+  ],
+  "modified_at": "2026-08-26T07:00:00-07:00"
+}
+```
+
+### Ollama Cloud API (`GET /api/show-cloud?model=glm-5.3-flash:cloud`)
+
+```bash
+curl -s "http://localhost:11435/api/show-cloud?model=glm-5.3-flash:cloud"
+```
+
+```json
+{
+  "model": "glm-5.3-flash:cloud",
+  "capabilities": [
+    "completion",
+    "thinking",
+    "tools",
+    "vision"
+  ],
+  "details": {
+    "parent_model": "glm-5.3-flash",
+    "format": "",
+    "family": "glm5_next",
+    "families": null,
+    "parameter_size": "321323031390",
+    "quantization_level": "FP8"
+  },
+  "model_info": {
+    "general.architecture": "glm5_next",
+    "general.parameter_count": 321323031390,
+    "glm5_next.context_length": 1048576,
+    "glm5_next.embedding_length": 4096
+  },
+  "modified_at": "2026-08-26T07:00:00-07:00",
+  "usage": 2,
+  "usage_label": "Medium",
+  "pricing": {
+    "input": 0.15,
+    "output": 0.5,
+    "cached": 0.03
+  },
+  "provider": "Zhipu AI",
+  "family": "glm5_next",
+  "profile": "fast",
+  "context_length": 1048576,
+  "installed": true
+}
+```
+
+**Added by Ollama Cloud API:**
+
+- **Exact Token Pricing**: `$0.15` input, `$0.50` output, and `$0.03` cached per 1M tokens.
+- **Usage Tier**: Numeric tier `2` and label `"Medium"`.
+- **AI Lab Attribution**: `"provider": "Zhipu AI"`.
+- **Speed Profile**: `"profile": "fast"` (distinguishing lightweight flash models from heavy pro models).
+- **Catalog Discovery**: Query, filter, and compare models even before pulling them locally.
+
+---
+
 ## Features
 
 - **Cloud Models Only**: `/api/show-cloud` filters catalog queries strictly to cloud models (`:cloud`).
@@ -147,6 +238,7 @@ curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?summary=true"
 ### 7. Transparent Ollama Pass-Through & Credit Protection
 
 When self-hosting with an upstream Ollama instance:
+
 - **Metadata Passthrough**: Read-only metadata endpoints (`/api/tags`, `/api/show`, `/api/version`, `/api/ps`) are forwarded directly to upstream Ollama at zero credit cost.
 - **Host Credit Protection**: All inference endpoints (`/api/chat`, `/api/generate`, `/api/embed`, `/api/embeddings`) are **disabled by default (403 Forbidden)** to ensure external callers cannot consume your Ollama Cloud credits.
 - **Model Safety**: Mutating operations (`/api/pull`, `/api/delete`, etc.) and unknown routes are blocked.
