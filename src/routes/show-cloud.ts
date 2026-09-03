@@ -11,6 +11,7 @@ import {
   inferModelProvider,
   inferModelProfile,
   getKnownContextLength,
+  getKnownParameterSize,
   getOllamaModelUrl,
 } from "../utils/model.js";
 import { sendJson, withError } from "../utils/http.js";
@@ -79,6 +80,7 @@ export const handleShowCloudAll = withError(async (
         const message = err instanceof Error ? err.message : String(err);
         const { usage, pricing } = await fetchModelUsageDetails(name);
         const { provider, family } = inferModelProvider(name);
+        const paramSize = getKnownParameterSize(name);
         return {
           name: catModel.cloud_tag,
           cloud_name: catModel.name,
@@ -94,6 +96,8 @@ export const handleShowCloudAll = withError(async (
           family,
           profile: inferModelProfile(name),
           context_length: getKnownContextLength(name),
+          parameter_size: paramSize,
+          details: { parameter_size: paramSize },
           error: message,
         };
       }

@@ -103,6 +103,9 @@ export function getKnownContextLength(modelName: string): number | undefined {
   if (norm.startsWith("kimi") || norm.startsWith("minimax")) {
     return 1000000;
   }
+  if (norm.startsWith("deepseek-v4-pro") || norm.startsWith("deepseek-v4")) {
+    return 1000000;
+  }
   if (
     norm.startsWith("nemotron-3-nano") ||
     norm.startsWith("nemotron-3-super") ||
@@ -128,6 +131,29 @@ export function getKnownContextLength(modelName: string): number | undefined {
   if (norm.startsWith("gpt-oss")) {
     return 131072;
   }
+  return undefined;
+}
+
+export function getKnownParameterSize(modelName: string): string | undefined {
+  const norm = modelName.toLowerCase().replace(/:cloud$/, "");
+  if (norm.startsWith("deepseek-v4-pro")) return "1.65T";
+  if (norm.startsWith("deepseek-v4-flash")) return "132B";
+  if (norm.startsWith("kimi-k3")) return "2.8T";
+  if (norm.startsWith("kimi-k2.7")) return "1T";
+  if (norm.startsWith("kimi-k2.6")) return "1T";
+  if (norm.startsWith("glm-5.3-flash")) return "321B";
+  if (norm.startsWith("glm-5.3")) return "753B";
+  if (norm.startsWith("glm-5.2") || norm.startsWith("glm-5.1")) return "756B";
+  if (norm.startsWith("minimax-m3")) return "1.2T";
+  if (norm.startsWith("minimax-m2.7")) return "456B";
+  if (norm.startsWith("nemotron-3-nano")) return "30B";
+  if (norm.startsWith("nemotron-3-super")) return "120B";
+  if (norm.startsWith("nemotron-3-ultra")) return "675B";
+  if (norm.startsWith("mistral-large-3")) return "675B";
+  if (norm.startsWith("gpt-oss:120b")) return "120B";
+  if (norm.startsWith("gpt-oss")) return "20B";
+  if (norm.startsWith("gemma4")) return "31B";
+  if (norm.startsWith("qwen3.5")) return "397B";
   return undefined;
 }
 

@@ -107,6 +107,7 @@ export interface FilterableModel {
   family?: string;
   profile?: string;
   context_length?: number;
+  parameter_size?: string;
   size?: number;
   capabilities?: string[];
   pull_command?: string;
@@ -126,6 +127,7 @@ export interface EnrichedModelData {
   family?: string;
   profile?: string;
   context_length?: number;
+  parameter_size?: string;
   details?: {
     parameter_size?: string;
     quantization_level?: string;

@@ -5,6 +5,7 @@ import {
   inferModelProvider,
   inferModelProfile,
   getKnownContextLength,
+  getKnownParameterSize,
   getOllamaModelUrl,
 } from "../utils/model.js";
 import type { OllamaModelInfo, ParsedBenchmarkTable, EnrichedModelData, ModelPricing } from "../types.js";
@@ -71,9 +72,15 @@ export async function getEnrichedModelData(
       : undefined);
 
   const contextLength = detectedContext || getKnownContextLength(modelName);
+  const detectedParamSize = detailsObj?.parameter_size as string | undefined;
+  const parameterSize = detectedParamSize || getKnownParameterSize(modelName);
 
   const result: EnrichedModelData = {
     ...(modelDetails || {}),
+    details: {
+      ...(detailsObj || {}),
+      parameter_size: parameterSize,
+    },
     usage,
     usage_label: getUsageLabel(usage),
     pricing: usageData?.pricing,
@@ -81,6 +88,7 @@ export async function getEnrichedModelData(
     family: detailsObj?.family ? String(detailsObj.family) : family,
     profile,
     context_length: contextLength,
+    parameter_size: parameterSize,
     ollama_url: getOllamaModelUrl(modelName),
     installed: modelDetails !== null,
   };
