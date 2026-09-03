@@ -1,15 +1,13 @@
 import { URL } from "url";
 import { getOpenApiSpecWithHost, renderDocsHtml } from "./openapi.js";
-import { sendJson } from "./utils/http.js";
+import { readBody, sendJson, sendError } from "./utils/http.js";
 import { PORT, OLLAMA_HOST } from "./config.js";
-import { handleCloudModels } from "./services/cloud-models.js";
+import { handleShowCloud, handleShowCloudAll } from "./routes/show-cloud.js";
 import { handleRecommend } from "./routes/recommend.js";
 import { handleLeaderboard } from "./routes/leaderboard.js";
 import { handleCompare } from "./routes/compare.js";
 import { handleOverview } from "./routes/overview.js";
 import { handleBenchmarks } from "./routes/benchmarks.js";
-import { handlePsCloud } from "./routes/ps-cloud.js";
-import { handleCacheStatus, handleCacheClear } from "./routes/cache.js";
 import { handleCompletions } from "./routes/completions.js";
 import { handlePassthrough } from "./routes/passthrough.js";
 export function createRouter() {
@@ -50,17 +48,12 @@ export function createRouter() {
                 openapi_url: `${baseUrl}/openapi.json`,
                 endpoints: [
                     "/api/show-cloud",
-                    "/api/show-cloud/grouped",
                     "/api/recommend",
                     "/api/leaderboard",
                     "/api/compare?models=<m1>,<m2>",
                     "/api/overview",
                     "/api/benchmarks",
                     "/api/benchmarks?model=<name>",
-                    "/api/tags-cloud",
-                    "/api/ps-cloud",
-                    "/api/cache/status",
-                    "/api/cache/clear",
                     "/docs",
                     "/openapi.json",
                     "/api/tags",
@@ -83,21 +76,32 @@ export function createRouter() {
         if (pathname === "/api/benchmarks" || pathname === "/benchmarks") {
             return handleBenchmarks(req, res, parsedUrl);
         }
-        if (pathname === "/api/cache/status") {
-            return handleCacheStatus(req, res);
-        }
-        if (pathname === "/api/cache/clear") {
-            return handleCacheClear(req, res);
-        }
-        // Consolidated handler for both show-cloud and tags-cloud (including subpaths)
-        if (pathname.startsWith("/api/show-cloud") ||
-            pathname.startsWith("/show-cloud") ||
-            pathname.startsWith("/api/tags-cloud") ||
-            pathname.startsWith("/tags-cloud")) {
-            return handleCloudModels(req, res, parsedUrl);
-        }
-        if (pathname === "/api/ps-cloud" || pathname === "/ps-cloud") {
-            return handlePsCloud(req, res);
+        // Handle show-cloud endpoints (both specific model and listing)
+        if (pathname === "/api/show-cloud" || pathname === "/show-cloud") {
+            const includeBenchmarks = parsedUrl.searchParams.get("benchmarks") === "true";
+            if (req.method === "GET") {
+                const model = parsedUrl.searchParams.get("model");
+                const isGrouped = parsedUrl.searchParams.get("grouped") === "true";
+                if (!model) {
+                    return handleShowCloudAll(req, res, parsedUrl, isGrouped, includeBenchmarks);
+                }
+                return handleShowCloud(req, res, {
+                    model,
+                    verbose: true,
+                    benchmarks: includeBenchmarks,
+                });
+            }
+            if (req.method === "POST") {
+                try {
+                    const body = await readBody(req);
+                    const payload = JSON.parse(body || "{}");
+                    return handleShowCloud(req, res, payload);
+                }
+                catch (err) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    return sendError(res, 400, `Invalid JSON: ${message}`);
+                }
+            }
         }
         // Handle chat and generate endpoints with special cloud-aware logic
         if ((pathname === "/api/chat" || pathname === "/api/generate") && req.method === "POST") {

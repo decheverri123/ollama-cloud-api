@@ -22,7 +22,7 @@ npx ollama-cloud-api
 
 - **Interactive API Documentation (Scalar)**: [https://ollama-cloud-api-4bbr.onrender.com/docs](https://ollama-cloud-api-4bbr.onrender.com/docs)
 - **Catalog Overview & Tier Breakdown**: [`GET /api/overview`](https://ollama-cloud-api-4bbr.onrender.com/api/overview)
-- **Grouped by Usage Tier**: [`GET /api/show-cloud/grouped`](https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud/grouped)
+- **Grouped by Usage Tier**: [`GET /api/show-cloud?grouped=true`](https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?grouped=true)
 - **Model Recommendations**: [`GET /api/recommend?task=coding&max_usage=2`](https://ollama-cloud-api-4bbr.onrender.com/api/recommend?task=coding&max_usage=2)
 
 - **Ranked Leaderboards**: [`GET /api/leaderboard?category=Coding`](https://ollama-cloud-api-4bbr.onrender.com/api/leaderboard?category=Coding)
@@ -32,7 +32,7 @@ npx ollama-cloud-api
 
 ## ✨ Key Features
 
-- **☁️ Cloud Models Only**: `/api/show-cloud` and `/api/tags-cloud` filter your library to only cloud models.
+- **☁️ Cloud Models Only**: `/api/show-cloud` filters your library to only cloud models.
 - **🔢 Numeric Usage Tiers (1–4)**:
   - `1` = **Low**
   - `2` = **Medium**
@@ -40,7 +40,6 @@ npx ollama-cloud-api
   - `4` = **Extra High**
 - **📊 Usage Detection**: Tiers derived from live pricing scrape OR fall back to known model data
 - **💾 Smart Caching**: 24-hour TTL with pre-cached known models (zero network for popular cloud models)
-- **🔄 Cache Control**: `/api/cache/status` and `/api/cache/clear` endpoints
 - **🌍 Full CORS**: Ready for web apps and browser extensions
 - **📋 OpenAPI 3.0**: Auto-generated spec at `/openapi.json`
 - **📚 Interactive Docs**: Powered by Scalar at `/docs`
@@ -120,68 +119,24 @@ curl https://ollama-cloud-api-4bbr.onrender.com/api/benchmarks
 ```
 
 ### 7. `GET /api/show-cloud` (Cloud Model Details)
-**Consolidated endpoint**: Returns cloud model details. Response format varies based on which endpoint you call:
-
-- **`/api/show-cloud`** → Full model details (parameters, template, capabilities, model_info)  
-- **`/api/tags-cloud`** → Lightweight tag format optimized for UI dropdowns & extensions  
-
-Both endpoints support the same query parameters for filtering, sorting, and grouping.
+Returns full model details (parameters, template, capabilities, model_info) and numeric `usage` (1–4) for cloud models. Supports filtering, sorting, and grouping.
 
 ```bash
-# Full details (show-cloud endpoint)
+# All cloud models
 curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud
+# Local: curl http://localhost:11435/api/show-cloud
 
-# Lightweight tags (tags-cloud endpoint)  
-curl https://ollama-cloud-api-4bbr.onrender.com/api/tags-cloud
+# Filter: Vision + Tools with Low/Medium usage sorted by lowest usage first
+curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?max_usage=2&capability=vision,tools&sort=usage"
 
-# Optional query parameters:
-#   - usage, max_usage, min_usage (filter by numeric tier 1-4)
-#   - capability (comma-separated: completion,thinking,tools,vision)
-#   - installed=true|false (filter by local install status)
-#   - sort=usage|name|size|usage_asc|usage_desc|name_asc|name_desc
-#   - grouped=true (group response by usage tier)
-#   - benchmarks=true (include benchmark data for show-cloud only)
-
-# Examples:
-# Vision models with low/medium usage, sorted by name
-curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?max_usage=2&capability=vision&sort=name"
-
-# Tag format for tools-capable models
-curl "https://ollama-cloud-api-4bbr.onrender.com/api/tags-cloud?capability=tools"
-
-# Grouped by tier (works with both endpoints)
-curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud/grouped
-curl https://ollama-cloud-api-4bbr.onrender.com/api/tags-cloud/grouped
-
-# Include benchmarks (show-cloud endpoint only)
-curl "https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?model=glm-5.3-flash:cloud&benchmarks=true"
+# Grouped by usage tier
+curl https://ollama-cloud-api-4bbr.onrender.com/api/show-cloud?grouped=true
 ```
 
-### 8. `GET /api/ps-cloud` (Running Cloud Models)
-Check running cloud models with active usage tiers.
-
-```bash
-curl https://ollama-cloud-api-4bbr.onrender.com/api/ps-cloud
-```
-
-### 9. `POST /api/cache/status`
-Check cache status and TTL information.
-
-```bash
-curl -X POST https://ollama-cloud-api-4bbr.onrender.com/api/cache/status
-```
-
-### 10. `POST /api/cache/clear`
-Reset caches to seed data (useful for development/testing).
-
-```bash
-curl -X POST https://ollama-cloud-api-4bbr.onrender.com/api/cache/clear
-```
-
-### 11. Transparent Ollama Pass-Through
+### 8. Transparent Ollama Pass-Through
 When self-hosting with an upstream Ollama instance, all standard Ollama endpoints are forwarded directly:
 - `/api/tags`, `/api/show`, `/api/version`
-- `/api/chat`, `/api/generate` (standard Ollama behavior - no cloud-aware features)
+- `/api/chat`, `/api/generate` (standard Ollama behavior)
 
 ```bash
 # Standard show (proxied to upstream Ollama)
@@ -236,7 +191,3 @@ pnpm start
 ## 📄 License
 
 MIT © 2024 Ollama Cloud API
-
----
-
-**Note**: The `/api/show-cloud` and `/api/tags-cloud` endpoints have been consolidated under a shared implementation for improved maintainability, but retain their distinct response formats and URLs for backward compatibility.
